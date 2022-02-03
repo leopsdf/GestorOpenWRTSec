@@ -91,7 +91,6 @@ def device_list():
         response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
         return jsonify(response_dict)        
     
-        
 
 if __name__ == "__main__":
     
