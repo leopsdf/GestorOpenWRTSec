@@ -1,0 +1,27 @@
+No intuito de abordar de maneira mais geral possível as configurações criadas para os OpenWRT 
+foi criado um formato padrão para cadastro de regras:
+
+
+{
+    "who":"admin",                      # string que identifica quem aplicou essa configuração
+    "timestamp":"03464608431654",       # epoch millis em int usado para determinar o momento que a config foi enviada
+    "type":"ipv4",                      # string que determina qual o tipo de configuração a ser aplicada
+    "fields":{                          # dicionário que determina os campos e valores relevantes a configuração aplicada
+        "interface":"eth1",
+        "address":"192.168.0.4",
+        "netmask":"255.255.255.0",
+    },
+    "targets":{                         # dicionário que determina quais hosts de quais grupos vão ser configurados
+        "first_floor":["192,168.0.1", "192.168.0.2"],
+        "guests":["192.168.1.2"]      
+    },
+    "schedule":{                        # dicionário que realiza o agendamento da configuração
+        "enable": 1,                    # opção que determina se a configuração vai ou não ser agendada
+        "minute": 00,
+        "hour": 12,
+        "dayofmonth": *,
+        "month": *,
+        "dayofweek": *
+    }
+
+}
