@@ -1,0 +1,65 @@
+# Esse documento aborda as configurações suportadas pela solução e os parâmetros utilizados 
+# para sua correta configuração.
+
+# Firewall - fw3
+
+# Firewall - iptables
+
+# Network - DHCP config
+
+-> OpenWRT como servidor DHCP (dhcp)
+
+    interface - (string) interface que estará aguardando as requisições DHCP
+    start - (número) número que define o endereço inicial a ser oferecido (Ex: 100 para ofertar a partir de 192.168.0.100)
+    limit_dhcp - (número) número que define a quantidade de endereços a ser ofertados a partir do inicial (Ex: 150 faz o exemplo 
+            a cima ir até 192.168.149)
+    leasetime - (número+'h') define o tempo limite de empréstimo de um endereço (Ex: 12h para 12 horas)
+
+-> Empréstimos estáticos (dchp_static)
+
+    mac - endereço MAC associado a interface do host que receberá o endereço estático
+    ip - IP emprestado para o host
+
+-> DHCP relay (dhcp_relay)
+
+    id_relay - identificador da regra de relay
+    interface - interface que se conecta com o servidor DHCP alvo
+    local_addr - endereço IP que escutará as requisições DHCP
+    server_addr - endereço IP associado do servidor DHCP, quando a requição bater em local_addr ela será
+                encaminhada para esse endereço
+
+# Network - IPv4 config 
+
+    ipaddr - endereço ipv4 do host
+    netmask - máscara da rede
+    gateway - gateway do host (Não obrigatório)
+    dns - endereço DNS
+    
+
+# Network - configuração de roteamento estático RIP
+
+    interface - interface a qual a rota será atribuída
+    target - prefixo de rede destino (Ex: rotas para 192.168.1.0/24)
+    netmask - máscara da rede destino
+    gateway - endereço associado ao gateway que receberá o trafégo
+
+
+# Traffic shaping - configuração de QoS (Quality of Service)
+
+    interface - interface na qual o QoS será aplicado
+    enabled - define se a configuração está habilitada (por padrão 1)
+    classgroup - Pode colocar "Default" inicialmente
+    overhead - impedir saturação de link (por padrão 1)
+    download - define o limite de download em kilobits/segundo (inteiro)
+    upload - define o limite de upload em kilobits/segundo (inteiro)
+
+
+# Network - DNS configuration (aplica a configuração em /etc/resolv.conf pelo crontab)
+
+    address - endereço do servidor DNS que deve ser utilizado
+
+
+
+
+
+
