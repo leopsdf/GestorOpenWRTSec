@@ -1,42 +1,15 @@
 from flask import Flask, request, jsonify, redirect, url_for
-import jwt
-
-
-########################### Utility functions used on the API paths ##############################
-
-
-# Reads the key file and returns it's contents in byte format, ready to be used for SSL or JWT token encoding
-def get_key(file_name):
-    key =""
-    with open(str(file_name), 'rb') as file:
-        key = file.read()
-        file.close()
-        
-    return key
-
-
-# Return array - [0] true if decoded successfully or false if error, [1] decoded jwt if true or error message if false
-def attempt_jwt_decode(jwt_token, pub_key):
-    try:
-        decoded_jwt_token = jwt.decode(jwt_token, pub_key, algorithms="RS256")
-        return [True, decoded_jwt_token]
-    except jwt.exceptions.InvalidTokenError as err:
-        err = jsonify({"ERROR":"JWT - "+str(err)})
-        return [False, err]
-    except jwt.exceptions.DecodeError as err:
-        err = jsonify({"ERROR":"JWT - "+str(err)})
-        return [False, err]
-    except jwt.exceptions.InvalidSignatureError as err:
-        err = jsonify({"ERROR":"JWT - "+str(err)})
-        return [False, err]
-    except jwt.exceptions.ExpiredSignatureError as err:
-        err = jsonify({"ERROR":"JWT - "+str(err)})
-        return [False, err]
-
+import northutils
+import socket
+import json
 
 ############################### FLASK API - PATHs ##########################################
         
 app = Flask(__name__)
+
+# INFO do socket db_daemon (recebimento de configs)
+HOST = "127.0.0.1"
+PORT = 65001
 
 ## Path for testing
 @app.route("/hi")
@@ -61,7 +34,7 @@ def jwt_token():
     # TODO - Algum procedimento para validação do ADMIN
     
     # Reads the private key file for JWT token creation
-    priv_key = get_key("./keys/northbound.key")
+    priv_key = northutils.get_key("./keys/northbound.key")
     jwt_token = jwt.encode(post_data, priv_key, algorithm="RS256")
     
     jwt_token_json = jsonify({"JWT":jwt_token})
@@ -79,10 +52,10 @@ def device_list():
     jwt_token = post_data["JWT"]
     
     # Reads the public key file for JWT decoding
-    pub_key = get_key("./keys/northbound.key.pub")
+    pub_key = northutils.get_key("./keys/northbound.key.pub")
     
     # Attempts JWT decoding
-    jwt_decoded = attempt_jwt_decode(jwt_token, pub_key)
+    jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
 
     if jwt_decoded[0]:
         print(jwt_decoded[1])
@@ -90,9 +63,111 @@ def device_list():
     else:
         response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
         return jsonify(response_dict)        
-    
 
-if __name__ == "__main__":
+# API para o recebimento de regras de configuração dos OpenWRT
+@app.route("/admin/config", methods=['POST'])
+def config():
+    
+    # Pega o conteúdo enviado pelo POST
+    post_data = request.get_json(force=True)
+    
+    # Reads the public key file for JWT decoding
+    pub_key = northutils.get_key("./keys/northbound.key.pub")
+    
+    # Attempts JWT decoding
+    jwt_token = post_data["JWT"]
+    jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
+
+    # Se não deu nenhum erro na decodificação    
+    if jwt_decoded[0]:
+        
+        # Cria o objeto para configuração
+        sent_config = northutils.Config(post_data)
+        
+        # Verifica se a configuração é válida
+        if sent_config.check_parameters_rule(known_parameters_json):
+
+            config_array = []
+            # Loop para criação de uma config para cada ip abordado na regra
+            for target_name in post_data["targets"].keys():
+                for ip in post_data["targets"][target_name]:
+                    rule_dict = {"action":post_data["action"],
+                                 "JWT":post_data["JWT"],
+                                 "who":post_data["who"],
+                                 "timestamp":post_data["timestamp"],
+                                 "type":post_data["type"],
+                                 "fields":post_data["fields"],
+                                 "targets":{target_name:[ip]},
+                                 "schedule":post_data["schedule"]
+                                 }
+                    
+                    # Insere a assinatura única da regra no corpo da mesma
+                    rule_dict = northutils.hash_rule(rule_dict)
+                    
+                    # Insere a configuração no array
+                    config_array.append(rule_dict)
+
+            # Array para regras nao duplicadas
+            success_rule = []
+            # Array para regras duplicadas
+            duplicate_rule = []
+            # Loop para verificação individual de cada hashs
+            for config in config_array:
+                # Verifica se a regra já foi cadastrada por comparação de hash
+                if config["rule_hash"] not in hash_array:                    
+                    # Coloca a regra em uma lista de sucesso
+                    success_rule.append(config)
+                        
+                    # Adiciona o hash de uma regra criada no hash em memória
+                    hash_array.append(config["rule_hash"])
+                
+                else:
+                    # Coloca os endereços que já possuem essa regra em duplicate_rule
+                    duplicate_rule.append(config["targets"])
+            
+            # Se não houverem duplicatas
+            if len(duplicate_rule) == 0:
+                
+                # Envia as configurações não duplicadas
+                sent_config.send(success_rule)
+                
+                # Retorna mensagem de sucesso
+                return jsonify({"SUCCESS":"The rules have been received and are not duplicates."})
+            
+            else:
+                
+                # Envia as configurações não duplicadas
+                sent_config.send(success_rule)
+                
+                # Retorna mensagem de sucesso
+                return jsonify({"ERROR":"The rule is a duplicate of previously existing rule. - The rule is a duplicate for the following targets: {}".format(duplicate_rule),
+                                "INFO":"If there were any other targets in your config they have been received and saved."})
+        else:
+            return jsonify({"ERROR":"Invalid fields or parameters sent."})
+        
+    else:
+        response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
+
+# Função principal da API northbound
+def northbound_main():
+    global hash_array
+    hash_array = []
+    
+    # Deixar em memórias os parâmetros das configurações
+    global known_parameters_json
+    known_parameters_json = northutils.load_all_possible_parameters()
+    
+    # Carrega o hash de todas as regras cadastradas
+    global configured_hash_array
+    configured_hash_array = northutils.load_all_applied_configs()
+    
+    for hashe in configured_hash_array:
+        hash_name = hashe[0]
+        hash_array.append(hash_name)
     
     # Flask webApp configuration - running on SSL
     app.run(debug=True,host="0.0.0.0",port=8080, ssl_context=('./keys/northbound.crt','./keys/northbound.key'))
+
+if __name__ == "__main__":
+    # Inicializa a API northbound
+    northbound_main()
