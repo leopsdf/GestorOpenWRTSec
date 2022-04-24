@@ -1,0 +1,10 @@
+# Arquivo que define o formato das configurações para criação de novos grupos lógicos
+
+{
+    "action":"create",                  # Ação a ser tomada com a regra (create e delete)
+    "JWT": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJuYW1lIjoiRGFuaWVsIiwiY2FyZ28iOiJhZG1pbiJ9.Tt0Q8zksPXQLS8UP3KmIuwVgG-eN2PbZ2aii9-TjdvXm1Aj7irnh_-8pLI7xVxJmR3PQRBct6hKS8ROJlatpigsQa40hnDFUi_I2iYuNQLGe6TTvvyqDbzQrxHYUU_ryMW2mpgCt_RpCjibyAFcT4PL_z5rArzhuvuFKNKoGU9L3meHdNPkpBW0rjmoSyC_RaCIaG7EtjdyEjtqsw0fbFoYCWkHBl25hoBkN4clgkHXMGzdOBkiQkLm4HyUZHq2cgn2flMpGGBeo_cKVUH4oLsQgkBtjyMHGSCvf4l26IuoTHcIWokhHuPzwRm4y5yV6wB3Sil7i5IcCAqwLurOk36PnlD2nrQ6Wm1HnD9nu0cXZetAMMNBKSWrYTc87cJzOPFAziRWZQEmq6REe1FMfsyulY4fBmgMChm5SO72bD0YQNkTZBvwjbteMmGPYJbln-Qq_lx30crgNJuRtMwYfK1s-ECPK0-R-HSibki8Nou1Q_K7AeKceej2UqvRtt63DzmTw5RA4iYz5fjJ1LJXkaKKV_vEsaHSwIpsQVCGSbf56HZHevN6K5w0BZ7txphohGm53SzVyITUHQIhWRH9K7d9I2lsad8GBfvzwYpC35wva27DFeztszY1t69Tsh0ENF9UGHlZvfn_w0FRl9Wr4Sk_62yBNklvW7d4tXoxzQbg",
+                                        # JWT Token utilizado para autenticação
+    "who":"admin",                      # string que identifica quem aplicou essa configuração
+    "timestamp":"03464608431654",       # epoch millis em int usado para determinar o momento que a config foi enviada
+    "group_name":"first_floors"         # nome do grupo a ser criado
+}
