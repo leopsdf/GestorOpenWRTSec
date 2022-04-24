@@ -87,6 +87,7 @@ class DB_daemon():
         
         # Executa todas as queries recebidas
         for query in queries_array:
+            print(query)
             cursor.execute(query)
 
         # Salva as mudanças feitas
@@ -106,24 +107,58 @@ class DB_daemon():
 
 # Função que pega a configuração recebida via socket e processa no DB
 def process_recv_configs(received_dict):
-    # Verifica se a regra é para configuração de OpenWRT
-    if received_dict["type"] != "group":
-        db = DB_daemon("database/configs.db", received_dict)
-        if received_dict["action"] == "apply":
-            # Criação de queries para inserção do db
-            queries = db.create_query_config()
-            # Execução dessas queries
-            #print(queries)
-            db.apply(queries)
-            print("INFO - config aplicada")
-        elif received_dict["action"] == "delete":
-            # Remoção das configurações pelo hash identificador
-            #print("delete")
-            db.delete()
-                
-    # Verifica se a regra é para criação de grupos lógicos
-    else:
-        print("placeholder - criação de grupo")
+    
+    db = DB_daemon("database/configs.db", received_dict)
+    if received_dict["action"] == "apply":
+        # Criação de queries para inserção do db
+        queries = db.create_query_config()
+        # Execução dessas queries
+        #print(queries)
+        db.apply(queries)
+        print("INFO - config aplicada")
+    elif received_dict["action"] == "delete":
+        # Remoção das configurações pelo hash identificador
+        #print("delete")
+        db.delete()
+
+# Função que pega a configuração de grupo recebida via socket e processa no DB
+def process_recv_groups(received_dict):
+
+    db  = DB_daemon("database/hosts_groups.db", received_dict)
+    if received_dict["action"] == "create":
+        # Criação de query
+        query = "insert into groups (group_name) values (\"{}\");".format(received_dict["group_name"])
+        queries = [query]
+        
+    elif received_dict["action"] == "delete":
+        # criação de query para deletar o grupo
+        query_delete = "delete from groups where group_name = \"{}\";".format(received_dict["group_name"])
+        # Colocar no grupo Default os hosts que estavam no grupo deletado
+        query_update_hosts = "update openwrt set group_name = \"{}\" where group_name = \"{}\";".format("Default",received_dict["group_name"])
+        queries = [query_delete,query_update_hosts]
+        
+    db.apply(queries)
+    
+# Função que pega a configuração de grupo recebida via socket e processa no DB
+def process_recv_hosts(received_dict):
+
+    db  = DB_daemon("database/hosts_groups.db", received_dict)
+    queries = []
+    if received_dict["action"] == "insert" or received_dict["action"] == "update":
+        
+        # Loop para criação de query para atualizar o grupo associado a um endereço
+        for host in received_dict["targets"]:
+            query = "update openwrt set group_name = \"{}\" where address = \"{}\";".format(received_dict["group_name"],host)
+            queries.append(query)
+        
+    elif received_dict["action"] == "delete":
+        
+        # Loop para criação de queries para remover hosts de um grupo, colocando eles no Default
+        for host in received_dict["targets"]:
+            query_update_hosts = "update openwrt set group_name = \"{}\" where address = \"{}\";".format("Default",host)
+            queries.append(query_update_hosts)
+        
+    db.apply(queries)
 
 # Função que inicializa o socket para receber configs da northbound API
 def db_daemon_recv():
@@ -150,11 +185,27 @@ def db_daemon_recv():
                 # Convertendo em JSON
                 try:
                     received_dict = json.loads(b.decode('utf-8'))
+                    
+                    if received_dict["global"] == "config":
+                        # Realiza o processamento da configuraçaõ
+                        process_recv_configs(received_dict)
+                        break
+                    elif received_dict["global"] == "group":
+                        # Realiza o processamento da configuração de grupo
+                        process_recv_groups(received_dict)
+                        break
+                        
+                    elif received_dict["global"] == "host":
+                        # Realiza o processamento da configuração de hosts
+                        process_recv_hosts(received_dict)
+                        break
+                    
                 except json.decoder.JSONDecodeError as err:
                     pass
-                # Realiza o processamento da configuraçaõ
-                process_recv_configs(received_dict)
-                break
+                
+                # # Realiza o processamento da configuraçaõ
+                # process_recv_configs(received_dict)
+                # break
             
                 # Finalizando a conexão
             conn.close()

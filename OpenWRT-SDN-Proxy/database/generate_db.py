@@ -20,6 +20,21 @@ json_config = {"ipv4": ipv4_config,
                "DNS":DNS_config,
                "fw":fw_config}
 
+def create_host_db():
+    conn = sqlite3.connect("./hosts_groups.db")
+    cursor = conn.cursor()
+    cursor.execute("create table openwrt (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, address TEXT, port INTEGER, netmask TEXT, group_name TEXT);")
+    conn.commit()
+    conn.close()
+    
+def create_group_db():
+    conn = sqlite3.connect("./hosts_groups.db")
+    cursor = conn.cursor()
+    cursor.execute("create table groups (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, group_name TEXT);")
+    cursor.execute("insert into groups (group_name) values (\"{}\");".format("Default"))
+    conn.commit()
+    conn.close()
+    
 def create_config_db():
     conn = sqlite3.connect("./configs.db")
     cursor = conn.cursor()
@@ -50,3 +65,5 @@ if __name__ == "__main__":
     os.system("rm ./*.db")
     create_config_db()
     create_config_parameters_db()
+    create_host_db()
+    create_group_db()

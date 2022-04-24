@@ -11,10 +11,8 @@ app = Flask(__name__)
 HOST = "127.0.0.1"
 PORT = 65001
 
-## Path for testing
-@app.route("/hi")
-def hi():
-    return "<p>Hello</p>"
+known_groups = []
+known_host_group_relation = {}
 
 ## Force HTTPS connections to the API
 @app.before_request
@@ -40,29 +38,110 @@ def jwt_token():
     jwt_token_json = jsonify({"JWT":jwt_token})
     
     return jwt_token_json
-    
 
-# API path used for listing the managed OpenWRT gateways
-@app.route("/device/list", methods=['POST'])
-def device_list():
-    
+# API para criação de novos grupos
+@app.route("/admin/group",methods=['POST'])
+def group():
+    # Pega o conteúdo enviado pelo POST
     post_data = request.get_json(force=True)
-    
-    # Get's the JWT field from the JSON
-    jwt_token = post_data["JWT"]
     
     # Reads the public key file for JWT decoding
     pub_key = northutils.get_key("./keys/northbound.key.pub")
     
     # Attempts JWT decoding
+    jwt_token = post_data["JWT"]
     jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
-
+    
+    # Se não deu nenhum erro na decodificação    
     if jwt_decoded[0]:
-        print(jwt_decoded[1])
-        return "<p>Success</p>"
+    
+        sent_config = northutils.Config(post_data)
+
+        # Carrega os grupos conhecidos
+        known_groups = northutils.load_all_groups()
+        
+        # Verifica se a configuração está correta.
+        if sent_config.check_group(known_groups):
+            # Se um grupo for criado coloque o nome do mesmo no objeto em memória known_groups
+            # if post_data["action"] == "create":
+            #     known_groups.append(post_data["group_name"])
+            #     print(known_groups)
+            #     return jsonify({"OK":"OK"})
+            # # Se um grupo for removido remova o nome do mesmo do objeto em memória known_groups
+            # elif post_data["action"] == "delete":
+            #     known_groups = [x for x in known_groups if x != post_data["group_name"]]
+            #     print(known_groups)
+            #     return jsonify({"OK":"OK"})
+            
+            # Insere a tag de group para do db_daemon
+            post_data["global"] = "group"
+            
+            # Envia a configuração para o db_daemon
+            sent_config.send([post_data])
+            
+            return jsonify({"SUCCESS":"The group configuration has been received."})
+            
+        else:
+            return jsonify({"ERROR":"Invalid fields or parameters sent."})
+    
     else:
         response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
-        return jsonify(response_dict)        
+        return jsonify(response_dict)
+    
+# API para criação de novos grupos
+@app.route("/admin/host",methods=['POST'])
+def host():
+    # Pega o conteúdo enviado pelo POST
+    post_data = request.get_json(force=True)
+    
+    # Reads the public key file for JWT decoding
+    pub_key = northutils.get_key("./keys/northbound.key.pub")
+    
+    # Attempts JWT decoding
+    jwt_token = post_data["JWT"]
+    jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
+    
+    # Se não deu nenhum erro na decodificação    
+    if jwt_decoded[0]:
+    
+        sent_config = northutils.Config(post_data)
+
+        # Carrega os grupos conhecidos
+        known_groups = northutils.load_all_groups()
+        # Carrega as relações entre hosts e grupos
+        known_host_group_relation = northutils.load_host_group_relation(known_groups)
+        # Carrega os hosts conhecidos
+        known_hosts = northutils.load_all_hosts()
+        
+        # Verifica se a configuração está correta.
+        if sent_config.check_host(known_hosts, known_groups, known_host_group_relation):
+            # Se um grupo for criado coloque o nome do mesmo no objeto em memória known_groups
+            # if post_data["action"] == "create":
+            #     known_groups.append(post_data["group_name"])
+            #     print(known_groups)
+            #     return jsonify({"OK":"OK"})
+            # # Se um grupo for removido remova o nome do mesmo do objeto em memória known_groups
+            # elif post_data["action"] == "delete":
+            #     known_groups = [x for x in known_groups if x != post_data["group_name"]]
+            #     print(known_groups)
+            #     return jsonify({"OK":"OK"})
+            
+            # Insere a tag de group para do db_daemon
+            post_data["global"] = "host"
+            
+            # Envia a configuração para o db_daemon
+            sent_config.send([post_data])
+            
+            return jsonify({"SUCCESS":"The host configuration has been received successfully."})
+            
+        else:
+            return jsonify({"ERROR":"Invalid fields or parameters sent.",
+                            "INFO":"Check if all the required parameters were sent. Observe if the targets and the groups exist in the database."})
+    
+    else:
+        response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
+        return jsonify(response_dict)
+        
 
 # API para o recebimento de regras de configuração dos OpenWRT
 @app.route("/admin/config", methods=['POST'])
@@ -103,6 +182,9 @@ def config():
                     
                     # Insere a assinatura única da regra no corpo da mesma
                     rule_dict = northutils.hash_rule(rule_dict)
+                    
+                    # Insere a tag de group para do db_daemon
+                    rule_dict["global"] = "config"
                     
                     # Insere a configuração no array
                     config_array.append(rule_dict)
@@ -147,6 +229,7 @@ def config():
         
     else:
         response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
+        return jsonify(response_dict)
 
 # Função principal da API northbound
 def northbound_main():

@@ -7,6 +7,7 @@ import ipaddress
 import socket
 import pickle
 import time
+from flask import jsonify
 
 ########################### Utility functions used on the API paths ##############################
 
@@ -32,17 +33,17 @@ def attempt_jwt_decode(jwt_token, pub_key):
         decoded_jwt_token = jwt.decode(jwt_token, pub_key, algorithms="RS256")
         return [True, decoded_jwt_token]
     except jwt.exceptions.InvalidTokenError as err:
-        err = jsonify({"ERROR":"JWT - "+str(err)})
-        return [False, err]
+        #err = jsonify({"ERROR":"JWT - "+str(err)})
+        return [False, str(err)]
     except jwt.exceptions.DecodeError as err:
-        err = jsonify({"ERROR":"JWT - "+str(err)})
-        return [False, err]
+        #err = jsonify({"ERROR":"JWT - "+str(err)})
+        return [False, str(err)]
     except jwt.exceptions.InvalidSignatureError as err:
-        err = jsonify({"ERROR":"JWT - "+str(err)})
-        return [False, err]
+        #err = jsonify({"ERROR":"JWT - "+str(err)})
+        return [False, str(err)]
     except jwt.exceptions.ExpiredSignatureError as err:
-        err = jsonify({"ERROR":"JWT - "+str(err)})
-        return [False, err]
+        #err = jsonify({"ERROR":"JWT - "+str(err)})
+        return [False, str(err)]
     
 # Função que carrega na memória todos os parâmetros aceitados
 # para cada configuração possível.
@@ -80,6 +81,64 @@ def load_all_applied_configs():
             configs.append(result)
             
     return configs
+
+# Função que carrega em memória todos os grupos criados
+def load_all_groups():
+    groups = []
+    
+    # conexão com o banco de dados de configurações
+    conn = sqlite3.connect("database/hosts_groups.db")
+    cursor = conn.cursor()
+    
+    # Pega os nomes dos grupos criados do banco de dados da tabela groups
+    cursor.execute("select group_name from groups;")
+    groups_prior = cursor.fetchall()
+    
+    for group in groups_prior:
+        groups.append(group[0])
+    conn.close()
+    
+    return groups
+
+# Função que pega no banco de dados os hosts cadastrados.
+# Não coloca em memória pois podem ter inserções enquanto
+# a API está em execução
+def load_all_hosts():
+    hosts = []
+    
+    conn = sqlite3.connect("database/hosts_groups.db")
+    cursor = conn.cursor()
+    
+    # Pega os endereços de todos os hosts cadastrados na ferramenta    
+    cursor.execute("select address from openwrt;")
+    hosts_prior = cursor.fetchall()
+    
+    for host in hosts_prior:
+        hosts.append(host[0])
+    
+    conn.close()
+    
+    return hosts
+
+# Função que carrega em memória todas relações grupos
+# hosts existentes
+def load_host_group_relation(known_groups):
+    host_group_relation = {}
+    
+    conn = sqlite3.connect("database/hosts_groups.db")
+    cursor = conn.cursor()
+    
+    # Pega os endereços de todos os hosts pertencentes a todos os grupos existentes 
+    for group in known_groups:
+        cursor.execute("select address from openwrt where group_name = \"{}\";".format(str(group)))
+        hosts_prior = cursor.fetchall()
+        hosts = []
+        for host in hosts_prior:
+            hosts.append(host[0])
+            
+        host_group_relation[group] = hosts
+        
+    return host_group_relation
 
 # Função que recebe o dicionário da regra a ser cadastrada e utiliza campos relevantes
 # para criar um hash, servindo como identificador único daquela regra. Utilizada para
@@ -204,8 +263,82 @@ class Config():
         return True
     
     # Método utilizado para checar a validez de uma criação de grupo lógico
-    def check_target(self):
-        print("placeholder") 
+    def check_group(self, known_groups):
+        group_parameters = ["action","JWT","who","timestamp","group_name"]
+        
+        # Inicializa o contador de parâmetros
+        parameter_counter = 0
+        # Loop que verifica se os campos enviados são estão dentro dos válidos
+        for group_param in self.config_body.keys():
+            if group_param not in group_parameters:
+                return False
+            parameter_counter += 1
+        
+        # Se a quantidade de parâmetros enviados diferente da quantidade obrigatória
+        if parameter_counter != len(group_parameters):
+            return False
+        
+        # Fazer a verificação da existência do grupo (delete) ou duplicata (create)
+        if self.config_body["action"] == "create":
+            if self.config_body["group_name"] in known_groups:
+                return False
+        elif self.config_body["action"] == "delete":
+            if self.config_body["group_name"] not in known_groups:
+                return False
+        else:
+            return False
+            
+        return True
+        
+    # Método utilizado para checar a existência de um host e do grupo lógico
+    def check_host(self, known_hosts, known_groups, known_host_group_relation):
+        host_parameters = ["action","JWT","who","timestamp","group_name","targets"]
+        
+        # Inicializa o contador de parâmetros
+        parameter_counter = 0
+        # Loop que verifica se os campos enviados são estão dentro dos válidos
+        for host_param in self.config_body.keys():
+            if host_param not in host_parameters:
+                #print("1")
+                return False
+            parameter_counter += 1
+        
+        # Se a quantidade de parâmetros enviados diferente da quantidade obrigatória
+        if parameter_counter != len(host_parameters):
+            #print("2")
+            return False
+        
+        # Fazer a verificação da existência do grupo e do host (insert), se o host e grupo existem (update)
+        # e se o host faz parte do grupo (delete)
+        if self.config_body["action"] == "insert":
+            if self.config_body["group_name"] not in known_groups:
+                #print("3")
+                return False
+            for target in self.config_body["targets"]:
+                if target not in known_hosts:
+                    #print("4")
+                    return False
+            
+        elif self.config_body["action"] == "delete":
+            for target in self.config_body["targets"]:
+                if target not in known_host_group_relation[self.config_body["group_name"]]:
+                    #print("5")
+                    return False
+                
+        elif self.config_body["action"] == "update":
+            if self.config_body["group_name"] not in known_groups:
+                #print("6")
+                return False
+            for target in self.config_body["targets"]:
+                if target not in known_hosts:
+                    #print("7")
+                    return False
+        else:
+            # Ação não suportada
+            #print("8")
+            return False
+            
+        return True
     
     # Método utilizado para enviar a configuração recebida para o db_daemon   
     def send(self,config_array):
