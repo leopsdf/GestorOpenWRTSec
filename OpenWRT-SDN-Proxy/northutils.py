@@ -189,6 +189,7 @@ def hash_rule(rule_dict):
         
     # Criação da string final associada a regra        
     final_string = action_string+type_string+field_string+target_string+schedule_string
+    #final_string = type_string+field_string+target_string+schedule_string
     
     # Hash md5 da string final
     md5_hash = hashlib.md5(final_string.encode('utf-8')).hexdigest()

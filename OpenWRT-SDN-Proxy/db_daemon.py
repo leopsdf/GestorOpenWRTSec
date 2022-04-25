@@ -87,7 +87,7 @@ class DB_daemon():
         
         # Executa todas as queries recebidas
         for query in queries_array:
-            print(query)
+            #print(query)
             cursor.execute(query)
 
         # Salva as mudanças feitas

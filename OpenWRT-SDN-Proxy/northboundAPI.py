@@ -170,22 +170,39 @@ def config():
             # Loop para criação de uma config para cada ip abordado na regra
             for target_name in post_data["targets"].keys():
                 for ip in post_data["targets"][target_name]:
-                    rule_dict = {"action":post_data["action"],
-                                 "JWT":post_data["JWT"],
-                                 "who":post_data["who"],
-                                 "timestamp":post_data["timestamp"],
-                                 "type":post_data["type"],
-                                 "fields":post_data["fields"],
-                                 "targets":{target_name:[ip]},
-                                 "schedule":post_data["schedule"]
-                                 }
-                    
+                    # Verifica se a ação é delete para não dar problemas com assinaturas
+                    if post_data["action"] == "delete":
+                        rule_dict = {"action":"apply",
+                                    "JWT":post_data["JWT"],
+                                    "who":post_data["who"],
+                                    "timestamp":post_data["timestamp"],
+                                    "type":post_data["type"],
+                                    "fields":post_data["fields"],
+                                    "targets":{target_name:[ip]},
+                                    "schedule":post_data["schedule"]
+                                    }
+                        
+                    else:
+                        rule_dict = {"action":post_data["action"],
+                                    "JWT":post_data["JWT"],
+                                    "who":post_data["who"],
+                                    "timestamp":post_data["timestamp"],
+                                    "type":post_data["type"],
+                                    "fields":post_data["fields"],
+                                    "targets":{target_name:[ip]},
+                                    "schedule":post_data["schedule"]
+                                    }
+                        
                     # Insere a assinatura única da regra no corpo da mesma
                     rule_dict = northutils.hash_rule(rule_dict)
                     
+                    # Retorna a ação para delete
+                    if post_data["action"] == "delete":
+                        rule_dict["action"] = "delete"
+                        
                     # Insere a tag de group para do db_daemon
                     rule_dict["global"] = "config"
-                    
+                        
                     # Insere a configuração no array
                     config_array.append(rule_dict)
 
@@ -195,17 +212,27 @@ def config():
             duplicate_rule = []
             # Loop para verificação individual de cada hashs
             for config in config_array:
-                # Verifica se a regra já foi cadastrada por comparação de hash
-                if config["rule_hash"] not in hash_array:                    
-                    # Coloca a regra em uma lista de sucesso
-                    success_rule.append(config)
-                        
-                    # Adiciona o hash de uma regra criada no hash em memória
-                    hash_array.append(config["rule_hash"])
                 
+                hash_array = []
+                configured_hash_array = northutils.load_all_applied_configs()
+                for hashe in configured_hash_array:
+                    hash_name = hashe[0]
+                    hash_array.append(hash_name)
+                
+                if config["action"] == "delete":
+                    success_rule.append(config)
                 else:
-                    # Coloca os endereços que já possuem essa regra em duplicate_rule
-                    duplicate_rule.append(config["targets"])
+                    # Verifica se a regra já foi cadastrada por comparação de hash
+                    if config["rule_hash"] not in hash_array:                    
+                        # Coloca a regra em uma lista de sucesso
+                        success_rule.append(config)
+                            
+                        # Adiciona o hash de uma regra criada no hash em memória
+                        #hash_array.append(config["rule_hash"])
+                    
+                    else:
+                        # Coloca os endereços que já possuem essa regra em duplicate_rule
+                        duplicate_rule.append(config["targets"])
             
             # Se não houverem duplicatas
             if len(duplicate_rule) == 0:
