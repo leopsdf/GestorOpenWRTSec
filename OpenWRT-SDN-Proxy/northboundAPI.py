@@ -39,6 +39,41 @@ def jwt_token():
     
     return jwt_token_json
 
+######################### APIs de listagem #############################
+
+@app.route("/admin/list/host/", defaults={'group_name':'all'},methods=['GET'])
+@app.route("/admin/list/host/<group_name>",methods=['GET'])
+def list_by_group(group_name):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "host_list"
+    # Se não for passado o nome do grupo selecione todos
+    if group_name == "all":
+        params = {"group_name":"all"}
+        pass
+    # Caso contrário utilize o nome do grupo passado como argumento
+    else:
+        # Seleciona todos os grupos cadastrados na ferramenta
+        known_groups = northutils.load_all_groups()
+        # Verifica se o nome do grupo usado como filtro existe
+        if group_name not in known_groups:
+            # Se não existir retorna mensagem de erro
+            return jsonify({"ERROR":"Group name '{}' is not a known group.".format(group_name)})
+        
+        # Parâmetros enviados para requisição ao banco de dados
+        params = {"group_name":group_name}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params)
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+    
+    
+########################################################################
+
+
+
 # API para criação de novos grupos
 @app.route("/admin/group",methods=['POST'])
 def group():

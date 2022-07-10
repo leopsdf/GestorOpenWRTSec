@@ -17,6 +17,10 @@ possible_configs = ["ipv4","dhcp","dhcp_static","dhcp_relay","RIP","QoS","DNS","
 HOST = "127.0.0.1"
 PORT = 65001
 
+# INFO do socket de envio e recebimento de listagens da northboundAPI
+HOST_LIST = "127.0.0.1"
+PORT_LIST = 65003
+
 # Reads the key file and returns it's contents in byte format, ready to be used for SSL or JWT token encoding
 def get_key(file_name):
     key =""
@@ -198,7 +202,55 @@ def hash_rule(rule_dict):
     rule_dict["rule_hash"] = md5_hash
     
     return rule_dict
+
+# Função que envia via socket as queries de listagem pro banco de dados processar.
+# Recebe de volta um dicionário com todos os resultados presentes no banco baseado no filtro.
+# query_type = host_list e config_list
+# params = dicionário com todos os filtros a serem utilizados (ver em cada rota de listagem da API o padrão para os tipos de query)
+def send_list_query_to_db(query_type,params):
+        
+    config = {'global':query_type,'params':params}
     
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # cria o obj socket | AF_INET p/ IPv4 | SOCK_STREAM -> p/ TCP
+        # Se conecta com o db_daemon
+        s.connect((HOST, PORT))
+        
+        # Transforma o json a ser enviado em um tipo serializado para o socket
+        send_data = json.dumps(config).encode('utf-8')
+        
+        # Manda o dicionário da query
+        s.sendall(send_data)
+        
+        result_array = []
+        while True:
+            
+            # Cria o tipo byte que vai receber a resposta
+            b = b''
+            # Lê a resposta do servidor
+            data = s.recv(32768)
+        
+            # Concatena com o formato de bytes
+            b += data
+            try:
+                # Transforma os bytes recebidos no formato json para ser retornado como dicionário
+                received_dict = json.loads(b.decode('utf-8'))
+            except json.decoder.JSONDecodeError as err:
+                    pass
+                
+            
+            try:
+                # Verifica se o último resultado da busca já foi enviado
+                if received_dict["Status"] == "End":
+                    break
+            except KeyError as err:
+                pass
+            
+            # Coloca os resultados dentro de um array
+            result_array.append(received_dict)
+            
+        # Retorna o array de resultados para a API
+        return result_array
+        
     
 # Classes responsável pelo processamento das conigurações recebidas.
 # Checagem de parâmetros, aplicação e deleção de regras
@@ -300,43 +352,43 @@ class Config():
         # Loop que verifica se os campos enviados são estão dentro dos válidos
         for host_param in self.config_body.keys():
             if host_param not in host_parameters:
-                #print("1")
+                print("1")
                 return False
             parameter_counter += 1
         
         # Se a quantidade de parâmetros enviados diferente da quantidade obrigatória
         if parameter_counter != len(host_parameters):
-            #print("2")
+            print("2")
             return False
         
         # Fazer a verificação da existência do grupo e do host (insert), se o host e grupo existem (update)
         # e se o host faz parte do grupo (delete)
         if self.config_body["action"] == "insert":
             if self.config_body["group_name"] not in known_groups:
-                #print("3")
+                print("3")
                 return False
             for target in self.config_body["targets"]:
                 if target not in known_hosts:
-                    #print("4")
+                    print("4")
                     return False
             
         elif self.config_body["action"] == "delete":
             for target in self.config_body["targets"]:
                 if target not in known_host_group_relation[self.config_body["group_name"]]:
-                    #print("5")
+                    print("5")
                     return False
                 
         elif self.config_body["action"] == "update":
             if self.config_body["group_name"] not in known_groups:
-                #print("6")
+                print("6")
                 return False
             for target in self.config_body["targets"]:
                 if target not in known_hosts:
-                    #print("7")
+                    print("7")
                     return False
         else:
             # Ação não suportada
-            #print("8")
+            print("8")
             return False
             
         return True

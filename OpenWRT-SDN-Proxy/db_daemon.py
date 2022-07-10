@@ -9,6 +9,7 @@
 import socket
 import sqlite3
 import json
+import time
 
 # INFO do socket db_daemon (recebimento de configs)
 HOST = "127.0.0.1"
@@ -17,6 +18,10 @@ PORT = 65001
 # INFO envio de configs para southbound
 HOST_SOUTH = "127.0.0.1"
 PORT_SOUTH = 65002
+
+# INFO do socket de envio e recebimento de listagens da northboundAPI
+HOST_LIST = "127.0.0.1"
+PORT_LIST = 65003
 
 # Classe principal do db_daemon, comprime todas as funções necessárias para o funcionamento da entidade
 class DB_daemon():
@@ -87,12 +92,28 @@ class DB_daemon():
         
         # Executa todas as queries recebidas
         for query in queries_array:
-            #print(query)
+            print(query)
             cursor.execute(query)
 
         # Salva as mudanças feitas
         conn.commit()
         conn.close()
+        
+    def apply_select(self,query):
+        
+        conn = sqlite3.connect(self.file)
+        cursor = conn.cursor()
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+        
+        send_result = []
+        for result in results:
+            dict_result = {"Address":result[1],"Port":result[2],"Netmask":result[3],"Group":result[4]}
+            send_result.append(dict_result)
+        
+        return send_result
+        
 
     # Função que executa queries recebidas (SOMENTE DELETE)
     def delete(self):
@@ -159,6 +180,22 @@ def process_recv_hosts(received_dict):
             queries.append(query_update_hosts)
         
     db.apply(queries)
+    
+
+# Função que pega a os parâmetros para listagem de hosts e usa para fazer busca no DB
+def process_recv_hosts_list(received_dict):
+
+    db  = DB_daemon("database/hosts_groups.db", received_dict)
+    
+    if received_dict["params"]["group_name"] == "all":
+        query = "select * from openwrt;"
+    else:
+        query = "select * from openwrt where group_name = \"{}\";".format(received_dict["params"]["group_name"])
+        
+    result = db.apply_select(query)    
+    
+    return result
+
 
 # Função que inicializa o socket para receber configs da northbound API
 def db_daemon_recv():
@@ -200,6 +237,31 @@ def db_daemon_recv():
                         process_recv_hosts(received_dict)
                         break
                     
+                    elif received_dict["global"] == "config_list":
+                        # TODO realiza o processamento da listagem de configurações
+                        break
+                    
+                    elif received_dict["global"] == "host_list":
+                        # Realiza o processa da listagem de hosts
+                        result = process_recv_hosts_list(received_dict)
+                        
+                        iterator = 0
+                        # Loop para retorno dos resultados para NorthboundAPI
+                        while iterator <= len(result):
+                            if iterator == len(result):
+                                # Envia o sinalizador para encerrar o socket do outro lado
+                                send_data = json.dumps({"Status":"End"}).encode('utf-8')
+                            else:
+                                send_data = json.dumps(result[iterator]).encode('utf-8')
+                        
+                            # Envia o resultado da listagem para northbound interface
+                            conn.sendall(send_data)
+                            time.sleep(0.01)
+                            
+                            iterator += 1
+                        
+                        break
+                    
                 except json.decoder.JSONDecodeError as err:
                     pass
                 
@@ -213,11 +275,12 @@ def db_daemon_recv():
             
 
 # Função que realiza o envio de configurações para a southbound API
-def db_daemon_send(config_json):
+def db_daemon_send(config_json,SEND_HOST,SEND_PORT):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # cria o obj socket | AF_INET p/ IPv4 | SOCK_STREAM -> p/ TCP
-        s.connect((HOST_SOUTH, PORT_SOUTH)) # conecta ao servidor da southbound API
+        s.connect((SEND_HOST, SEND_PORT)) # conecta ao servidor da southbound API
         send_data = json.dumps(config_json).encode('utf-8')
         s.sendall(send_data) # manda a mensagem
+        s.close()
 
 if __name__ == "__main__":
     
