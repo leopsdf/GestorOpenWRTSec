@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, redirect, url_for
 import northutils
 import socket
 import json
+import re
 
 ############################### FLASK API - PATHs ##########################################
         
@@ -64,11 +65,322 @@ def list_by_group(group_name):
         params = {"group_name":group_name}
     
     # Envia o tipo da query e seus parâmetros para o db_daemon
-    result = northutils.send_list_query_to_db(query_type, params)
+    result = northutils.send_list_query_to_db(query_type, params,None)
         
     # Retorna o resultado para o usuário
     return jsonify({"Status":"Success", "Results":result})
+
+# dhcp
+@app.route("/admin/list/config/dhcp", defaults={'interface':'all','start':'all','limit_dhcp':'all','leasetime':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp/<interface>", defaults={'start':'all','limit_dhcp':'all','leasetime':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp/<interface>/<start>", defaults={'limit_dhcp':'all','leasetime':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp/<interface>/<start>/<limit_dhcp>", defaults={'leasetime':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp/<interface>/<start>/<limit_dhcp>/<leasetime>", methods=['GET'])
+def list_config_dhcp(interface,start,limit_dhcp,leasetime):
     
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    
+    # Verifica se os tipos dos parâmetros passados estão corretos
+    if interface != "all":
+        if type(interface) != str:
+            return jsonify({"ERROR":"Interface name '{}' is not a string.".format(interface)})
+        
+    if start != "all":
+        # Verifica se o valor passado em start pode ser um inteiro
+        try:
+            new_start = int(start)
+        except ValueError as err:
+            return jsonify({"ERROR":"Start ip '{}' is not a integer.".format(start)})
+        
+    if limit_dhcp != "all":
+        # Verifica se o valor passado em limit_dhcp pode ser um inteiro
+        try:
+            new_limit = int(limit_dhcp)
+        except ValueError as err:
+            return jsonify({"ERROR":"limit_dhcp '{}' is not a number.".format(limit_dhcp)})
+    
+    # Verifica todas as condições para que o lease_time seja do tipo número+h
+    if leasetime != "all":
+        if type(leasetime) != str:
+            return jsonify({"ERROR":"leasetime '{}' is not a string.".format(leasetime)})
+        else:
+            if len(leasetime) <= 1 or len(leasetime) > 3:
+                return jsonify({"ERROR":"leasetime '{}' must be of length 1-3 characters containg number+h.".format(leasetime)})
+            
+            elif leasetime[len(leasetime)-1] != 'h':
+                return jsonify({"ERROR":"leasetime '{}' last character must be an 'h' (hour).".format(leasetime)})
+                
+            else:
+                without_h = leasetime.replace("h","")
+                for character in without_h:
+                    try:
+                        temp = int(character)
+                    except ValueError as err:
+                        return jsonify({"ERROR":"leasetime '{}' must be number followed by an 'h'. E.g: 12h".format(leasetime)})
+        
+    # Parâmetros enviados para requisição ao banco de dados
+    params = {"interface":interface,'start':start,'limit_dhcp':limit_dhcp,'leasetime':leasetime}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"dhcp")
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+# dhcp_static
+@app.route("/admin/list/config/dhcp_static", defaults={'mac':'all','ip':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp_static/<mac>", defaults={'ip':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp_static/<mac>/<ip>",methods=['GET'])
+def list_config_dhcp_static(mac,ip):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+
+    if mac != "all":
+        # Verifica se não é um mac válido
+        if not re.match("[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", mac.lower()):
+            return jsonify({"ERROR":"MAC '{}' is not a valid address.".format(mac)})
+    
+    if ip != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(ip)
+        except socket.error:
+            return jsonify({"ERROR":"IP '{}' is not a valid address.".format(ip)})
+    
+    # Parâmetros enviados para requisição ao banco de dados
+    params = {"mac":mac,"ip":ip}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"dhcp_static")
+    
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+    
+# iptables
+# TODO
+
+# dhcp_relay
+@app.route("/admin/list/config/dhcp_relay", defaults={'id_relay':'all','interface':'all','local_addr':'all','server_addr':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp_relay/<id_relay>", defaults={'interface':'all','local_addr':'all','server_addr':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp_relay/<id_relay>/<interface>", defaults={'local_addr':'all','server_addr':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp_relay/<id_relay>/<interface>/<local_addr>", defaults={'server_addr':'all'},methods=['GET'])
+@app.route("/admin/list/config/dhcp_relay/<id_relay>/<interface>/<local_addr>/<server_addr>",methods=['GET'])
+def list_config_dhcp_relay(id_relay,interface,local_addr,server_addr):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+
+    # Verifica se os tipos dos parâmetros passados estão corretos
+    if id_relay != "all":
+        if type(id_relay) != str:
+            return jsonify({"ERROR":"id_relay '{}' is not a string.".format(id_relay)})
+        
+    # Verifica se os tipos dos parâmetros passados estão corretos
+    if interface != "all":
+        if type(interface) != str:
+            return jsonify({"ERROR":"Interface name '{}' is not a string.".format(interface)})
+        
+    if local_addr != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(local_addr)
+        except socket.error:
+            return jsonify({"ERROR":"local_addr '{}' is not a valid address.".format(local_addr)})
+        
+    if server_addr != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(server_addr)
+        except socket.error:
+            return jsonify({"ERROR":"server_addr '{}' is not a valid address.".format(server_addr)})
+    
+    # Parâmetros enviados para requisição ao banco de dados
+    params = {"id_relay":id_relay,"interface":interface,"local_addr":local_addr,"server_addr":server_addr}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"dhcp_relay")
+    
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+# ipv4
+@app.route("/admin/list/config/ipv4", defaults={'ipaddr':'all','netmask':'all','gateway':'all','dns':'all'},methods=['GET'])
+@app.route("/admin/list/config/ipv4/<ipaddr>", defaults={'netmask':'all','gateway':'all','dns':'all'},methods=['GET'])
+@app.route("/admin/list/config/ipv4/<ipaddr>/<netmask>", defaults={'gateway':'all','dns':'all'},methods=['GET'])
+@app.route("/admin/list/config/ipv4/<ipaddr>/<netmask>/<gateway>", defaults={'dns':'all'},methods=['GET'])
+@app.route("/admin/list/config/ipv4/<ipaddr>/<netmask>/<gateway>/<dns>",methods=['GET'])
+def list_config_ipv4(ipaddr,netmask,gateway,dns):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+
+    if ipaddr != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(ipaddr)
+        except socket.error:
+            return jsonify({"ERROR":"ipaddr '{}' is not a valid address.".format(ipaddr)})
+        
+    if netmask != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(netmask)
+        except socket.error:
+            return jsonify({"ERROR":"netmask '{}' is not a valid address.".format(netmask)})
+        
+    if gateway != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(gateway)
+        except socket.error:
+            return jsonify({"ERROR":"gateway '{}' is not a valid address.".format(gateway)})
+        
+    if dns != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(dns)
+        except socket.error:
+            return jsonify({"ERROR":"dns '{}' is not a valid address.".format(dns)})
+    
+    # Parâmetros enviados para requisição ao banco de dados
+    params = {"ipaddr":ipaddr,"gateway":gateway,"netmask":netmask,"dns":dns}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"ipv4")
+    
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+# rip
+@app.route("/admin/list/config/rip", defaults={'interface':'all','target':'all','netmask':'all','gateway':'all'},methods=['GET'])
+@app.route("/admin/list/config/rip/<interface>", defaults={'target':'all','netmask':'all','gateway':'all'},methods=['GET'])
+@app.route("/admin/list/config/rip/<interface>/<target>", defaults={'netmask':'all','gateway':'all'},methods=['GET'])
+@app.route("/admin/list/config/rip/<interface>/<target>/<netmask>", defaults={'gateway':'all'},methods=['GET'])
+@app.route("/admin/list/config/rip/<interface>/<target>/<netmask>/<gateway>",methods=['GET'])
+def list_config_rip(interface,target,netmask,gateway):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    
+    # Verifica se os tipos dos parâmetros passados estão corretos
+    if interface != "all":
+        if type(interface) != str:
+            return jsonify({"ERROR":"interface '{}' is not a string.".format(interface)})
+        
+    # Verifica se os tipos dos parâmetros passados estão corretos
+    if target != "all":
+        if type(target) != str:
+            return jsonify({"ERROR":"target '{}' is not a string.".format(target)})
+
+    if netmask != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(netmask)
+        except socket.error:
+            return jsonify({"ERROR":"netmask '{}' is not a valid address.".format(netmask)})
+        
+    if gateway != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(gateway)
+        except socket.error:
+            return jsonify({"ERROR":"gateway '{}' is not a valid address.".format(gateway)})
+    
+    # Parâmetros enviados para requisição ao banco de dados
+    params = {"interface":interface,"target":target,"netmask":netmask,"gateway":gateway}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"rip")
+    
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+# qos
+@app.route("/admin/list/config/qos", defaults={'interface':'all','enabled':'all','classgroup':'all','overhead':'all','download':'all','upload':'all'},methods=['GET'])
+@app.route("/admin/list/config/qos/<interface>", defaults={'enabled':'all','classgroup':'all','overhead':'all','download':'all','upload':'all'},methods=['GET'])
+@app.route("/admin/list/config/qos/<interface>/<enabled>", defaults={'classgroup':'all','overhead':'all','download':'all','upload':'all'},methods=['GET'])
+@app.route("/admin/list/config/qos/<interface>/<enabled>/<classgroup>", defaults={'overhead':'all','download':'all','upload':'all'},methods=['GET'])
+@app.route("/admin/list/config/qos/<interface>/<enabled>/<classgroup>/<overhead>", defaults={'download':'all','upload':'all'},methods=['GET'])
+@app.route("/admin/list/config/qos/<interface>/<enabled>/<classgroup>/<overhead>/<download>", defaults={'upload':'all'},methods=['GET'])
+@app.route("/admin/list/config/qos/<interface>/<enabled>/<classgroup>/<overhead>/<download>/<upload>",methods=['GET'])
+def list_config_qos(interface,enabled,classgroup,overhead,download,upload):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+
+    # Verifica se os tipos dos parâmetros passados estão corretos
+    if interface != "all":
+        if type(interface) != str:
+            return jsonify({"ERROR":"interface '{}' is not a string.".format(interface)})
+        
+    if enabled != "all":
+        # Verifica se o valor passado em enabled pode ser um inteiro
+        try:
+            new_limit = int(enabled)
+        except ValueError as err:
+            return jsonify({"ERROR":"enabled '{}' is not a number.".format(enabled)})
+        
+    # Verifica se os tipos dos parâmetros passados estão corretos
+    if classgroup != "all":
+        if type(classgroup) != str:
+            return jsonify({"ERROR":"classgroup '{}' is not a string.".format(classgroup)})
+        
+    if overhead != "all":
+        # Verifica se o valor passado em enabled pode ser um inteiro
+        try:
+            new_limit = int(overhead)
+        except ValueError as err:
+            return jsonify({"ERROR":"overhead '{}' is not a number.".format(overhead)})
+
+    if download != "all":
+        # Verifica se o valor passado em enabled pode ser um inteiro
+        try:
+            new_limit = int(download)
+        except ValueError as err:
+            return jsonify({"ERROR":"download '{}' is not a number.".format(download)})
+        
+    if upload != "all":
+        # Verifica se o valor passado em enabled pode ser um inteiro
+        try:
+            new_limit = int(upload)
+        except ValueError as err:
+            return jsonify({"ERROR":"upload '{}' is not a number.".format(upload)})
+    
+    # Parâmetros enviados para requisição ao banco de dados
+    params = {"interface":interface,"enabled":enabled,"classgroup":classgroup,"overhead":overhead,"download":download,"upload":upload}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"qos")
+    
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+# dns
+DNS_config = ["address"]
+@app.route("/admin/list/config/dns", defaults={'address':'all'},methods=['GET'])
+@app.route("/admin/list/config/dns/<address>", methods=['GET'])
+def list_config_dns(address):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    
+    if address != "all":
+        # Verifica se o endereço IP é válido
+        try:
+            socket.inet_aton(address)
+        except socket.error:
+            return jsonify({"ERROR":"address '{}' is not a valid IP.".format(address)})
+    
+    # Parâmetros enviados para requisição ao banco de dados
+    params = {"address":address}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"dns")
+    
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
     
 ########################################################################
 
@@ -201,10 +513,31 @@ def config():
         # Verifica se a configuração é válida
         if sent_config.check_parameters_rule(known_parameters_json):
 
+            # Carrega os grupos conhecidos
+            known_groups = northutils.load_all_groups()
+            # Carrega as relações entre hosts e grupos
+            known_host_group_relation = northutils.load_host_group_relation(known_groups)
+            # Carrega os hosts conhecidos
+            known_hosts = northutils.load_all_hosts()
+
+
             config_array = []
             # Loop para criação de uma config para cada ip abordado na regra
             for target_name in post_data["targets"].keys():
+
+                # Verifica se o nome do grupo existe
+                if target_name not in known_groups:
+                    # Se não existir retorna mensagem de erro
+                    return jsonify({"ERROR":"Target name '{}' is not a known group.".format(target_name)})
+                
                 for ip in post_data["targets"][target_name]:
+                    
+                    if ip not in known_hosts:
+                        return jsonify({"ERROR":"Host '{}' doesnt exist in the database.".format(ip)})
+                    
+                    elif ip not in known_host_group_relation[target_name]:
+                        return jsonify({"ERROR":"Host '{}' doesnt belong to group {}.".format(ip,target_name)})
+                    
                     # Verifica se a ação é delete para não dar problemas com assinaturas
                     if post_data["action"] == "delete":
                         rule_dict = {"action":"apply",

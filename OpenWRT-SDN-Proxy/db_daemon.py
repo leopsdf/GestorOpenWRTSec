@@ -98,16 +98,24 @@ class DB_daemon():
         # Salva as mudanças feitas
         conn.commit()
         conn.close()
-        
-    def apply_select(self,query):
+    
+    # Função que seleciona os hosts baseados no filro recebido e os formata em dicionário
+    def apply_select_host(self,query):
         
         conn = sqlite3.connect(self.file)
         cursor = conn.cursor()
         
+        # Executa a query
         cursor.execute(query)
+        # Pega os resultados da query
         results = cursor.fetchall()
         
+        # Se não houver resultados para o filtro aplicado retorne a mensagem abaixo
+        if len(results) == 0:
+            return [{"Response":"No hosts found"}]
+        
         send_result = []
+        # Loop de confecção de dicionários para resposta da requisição bem estruturada
         for result in results:
             dict_result = {"Address":result[1],"Port":result[2],"Netmask":result[3],"Group":result[4]}
             send_result.append(dict_result)
@@ -185,17 +193,131 @@ def process_recv_hosts(received_dict):
 # Função que pega a os parâmetros para listagem de hosts e usa para fazer busca no DB
 def process_recv_hosts_list(received_dict):
 
+    # Instancia objeto de queries com o banco de dados
     db  = DB_daemon("database/hosts_groups.db", received_dict)
     
+    # Verifica se a listagem de hosts tem o parâmetro all
     if received_dict["params"]["group_name"] == "all":
         query = "select * from openwrt;"
+    # Caso contrário construa a query de acordo com o grupo do nome.
+    # Não é necessário verificar a existência, na API norte já é feita a verificação.
     else:
         query = "select * from openwrt where group_name = \"{}\";".format(received_dict["params"]["group_name"])
-        
-    result = db.apply_select(query)    
     
+    # Executa a query definida acima    
+    result = db.apply_select_host(query)    
+    
+    # Retorna o resultado da query
     return result
 
+# Função que pega os parâmetros de listagem para uma determinada configuração e usa para fazer busca no DB
+def process_recv_config_list(received_dict, initial_query):
+
+    # Pega o nome de todos os parâmetros enviados como filtros
+    params_keys = list(received_dict["params"].keys())
+    
+    # Array para armazenar as configurações que não são all
+    not_all = []
+    # Loop para verificar se existem configurações que não são all
+    for param in params_keys:
+        if received_dict["params"][param] == "all":
+            pass
+        else:
+            # Se não for all coloca no array
+            not_all.append(param)
+            
+    # Se todos forem all não há necessidade de adicionar filtros no select
+    if len(not_all) == 0:
+        query = initial_query+";"
+        
+    # Se houver um único que não é all coloque como filtro
+    else:
+        final_query = " where "
+        iterator = 0
+        for key in not_all:
+            if iterator == len(not_all)-1:
+                string = "\"{}\"=\"{}\";".format(key,received_dict["params"][key])
+            else:
+                string = "\"{}\"=\"{}\" AND ".format(key,received_dict["params"][key])
+            
+            final_query += string
+            
+            iterator += 1
+        
+        query = initial_query+final_query
+    
+    print("final query: {}".format(query))
+    
+    conn = sqlite3.connect("database/configs.db")
+    cursor = conn.cursor()
+    
+    # Executa a query
+    cursor.execute(query)
+    # Pega os resultados da query
+    results = cursor.fetchall()
+    
+    return results
+
+# Função que retorna o resultado da listagem para a northboundAPI
+def send_result_list_loop(result,conn):
+    iterator = 0
+    # Loop para retorno dos resultados para NorthboundAPI
+    while iterator <= len(result):
+        if iterator == len(result):
+            # Envia o sinalizador para encerrar o socket do outro lado
+            send_data = json.dumps({"Status":"End"}).encode('utf-8')
+        else:
+            send_data = json.dumps(result[iterator]).encode('utf-8')
+                        
+        # Envia o resultado da listagem para northbound interface
+        conn.sendall(send_data)
+        time.sleep(0.01)
+                            
+        iterator += 1
+        
+def pre_send_list_result(received_dict,initial_query,conn,sub_config):
+    # Realiza o processamento da listagem de configuração
+    results = process_recv_config_list(received_dict, initial_query)
+                                    
+    # Se não houver resultados para o filtro aplicado retorne a mensagem abaixo
+    if len(results) == 0:
+        send_result_list_loop([{"Response":"No such configurations found in the database: {}".format(received_dict)}],conn)
+    
+    send_result = []
+    # Loop de confecção de dicionários para resposta da requisição bem estruturada
+    for result in results:
+        possible_configs = ["ipv4","dhcp","dhcp_static","dhcp_relay","RIP","QoS","DNS","fw"]
+        if sub_config == "dhcp":
+            dict_result = {"Interface":result[2],"Start":result[3],"Limit DHCP":result[4],"Lease Time":result[5],"Group":result[6],"OpenWRT":result[7]}
+            
+        elif sub_config == "dhcp_static":
+            dict_result = {"MAC":result[2],"IP":result[3],"Group":result[4],"OpenWRT":result[5]}
+            
+        elif sub_config == "dhcp_relay":
+            dict_result = {"ID_Relay":result[2],"Interface":result[3],"Local_ADDR":result[4],"Server_ADDR":result[5],"Group":result[6],"OpenWRT":result[7]}
+
+        elif sub_config == "ipv4":
+            dict_result = {"Address":result[2],"Netmask":result[3],"Gateway":result[4],"DNS":result[5],"Group":result[6],"OpenWRT":result[7]}
+            
+        elif sub_config == "rip":
+            dict_result = {"Interface":result[2],"Target":result[3],"Netmask":result[4],"Gateway":result[5],"Group":result[6],"OpenWRT":result[7]}
+
+        elif sub_config == "qos":
+            dict_result = {"Interface":result[2],"Enabled":result[3],"Class group":result[4],"Overhead":result[5],"Download":result[6],"Upload":result[7],"Group":result[8],"OpenWRT":result[9]}
+
+        elif sub_config == "dns":
+            dict_result = {"Address":result[2],"Group":result[3],"OpenWRT":result[4]}
+
+        elif sub_config == "iptables":
+            # TODO
+            #dict_result = {"Interface":result[2],"Start":result[3],"Limit DHCP":result[4],"Lease Time":result[5]}
+            dict_result = {"None":"None"}
+            pass
+            
+        send_result.append(dict_result)
+
+    # Função de envio dos resultados para northbound interface
+    send_result_list_loop(send_result,conn)
 
 # Função que inicializa o socket para receber configs da northbound API
 def db_daemon_recv():
@@ -238,28 +360,73 @@ def db_daemon_recv():
                         break
                     
                     elif received_dict["global"] == "config_list":
-                        # TODO realiza o processamento da listagem de configurações
+                        # Processamento de listagem para config list
+                        if received_dict["sub_config"] == "dhcp":
+                            
+                            # Define o inicio da query para listagem
+                            initial_query = "select * from dhcp"
+                            
+                            pre_send_list_result(received_dict,initial_query,conn,"dhcp")
+                            
+                        elif received_dict["sub_config"] == "dhcp_static":
+                            
+                            # Define o inicio da query para listagem
+                            initial_query = "select * from dhcp_static"
+                            
+                            pre_send_list_result(received_dict,initial_query,conn,"dhcp_static")
+                            
+                        elif received_dict["sub_config"] == "iptables":
+                            # TODO definir parâmetros para regras de iptables para voltar aqui
+                            # Define o inicio da query para listagem
+                            # initial_query = "select * from fw"
+                            
+                            # pre_send_list_result(received_dict,initial_query,conn,"iptables")
+                            pass
+                            
+                        elif received_dict["sub_config"] == "dhcp_relay":
+                            
+                            # Define o inicio da query para listagem
+                            initial_query = "select * from dhcp_relay"
+                            
+                            pre_send_list_result(received_dict,initial_query,conn,"dhcp_relay")
+                            
+                        elif received_dict["sub_config"] == "ipv4":
+                            
+                            # Define o inicio da query para listagem
+                            initial_query = "select * from ipv4"
+                            
+                            pre_send_list_result(received_dict,initial_query,conn,"ipv4")
+                            
+                        elif received_dict["sub_config"] == "rip":
+                            
+                            # Define o inicio da query para listagem
+                            initial_query = "select * from RIP"
+                            
+                            pre_send_list_result(received_dict,initial_query,conn,"rip")
+                            
+                        elif received_dict["sub_config"] == "qos":
+                            
+                            # Define o inicio da query para listagem
+                            initial_query = "select * from QoS"
+                            
+                            pre_send_list_result(received_dict,initial_query,conn,"qos")
+                            
+                        elif received_dict["sub_config"] == "dns":
+                            
+                            # Define o inicio da query para listagem
+                            initial_query = "select * from DNS"
+                            
+                            pre_send_list_result(received_dict,initial_query,conn,"dns")
+                            
                         break
                     
                     elif received_dict["global"] == "host_list":
                         # Realiza o processa da listagem de hosts
                         result = process_recv_hosts_list(received_dict)
                         
-                        iterator = 0
-                        # Loop para retorno dos resultados para NorthboundAPI
-                        while iterator <= len(result):
-                            if iterator == len(result):
-                                # Envia o sinalizador para encerrar o socket do outro lado
-                                send_data = json.dumps({"Status":"End"}).encode('utf-8')
-                            else:
-                                send_data = json.dumps(result[iterator]).encode('utf-8')
-                        
-                            # Envia o resultado da listagem para northbound interface
-                            conn.sendall(send_data)
-                            time.sleep(0.01)
-                            
-                            iterator += 1
-                        
+                        # Função de envio dos resultados para northbound interface
+                        send_result_list_loop(result,conn)
+
                         break
                     
                 except json.decoder.JSONDecodeError as err:

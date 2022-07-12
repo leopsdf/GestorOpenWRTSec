@@ -163,7 +163,7 @@ def hash_rule(rule_dict):
     # Loop de criação da string associada ao campo fields
     field_string = ""
     for field in ordered_fields.keys():
-        field_string += field+ordered_fields[field]
+        field_string += field+str(ordered_fields[field])
     
     # Ordena as chaves do campo targets em ordem alfabética, para que assim
     # caso sejam enviadas em ordem diferente não haja mudança no hash da regra
@@ -207,9 +207,14 @@ def hash_rule(rule_dict):
 # Recebe de volta um dicionário com todos os resultados presentes no banco baseado no filtro.
 # query_type = host_list e config_list
 # params = dicionário com todos os filtros a serem utilizados (ver em cada rota de listagem da API o padrão para os tipos de query)
-def send_list_query_to_db(query_type,params):
-        
-    config = {'global':query_type,'params':params}
+# sub_cofig = tipo da configuração (dhcp,dhcp_relay,dhcp_static,ipv4,dnv,rip,qos,iptables)
+def send_list_query_to_db(query_type,params,sub_config):
+    
+    # verifica se o tipo da listagem é para um configuração, que teria um sub_config diferente de none
+    if sub_config == None:
+        config = {'global':query_type,'params':params}
+    else:
+        config = {'global':query_type,'params':params,'sub_config':sub_config}
     
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # cria o obj socket | AF_INET p/ IPv4 | SOCK_STREAM -> p/ TCP
         # Se conecta com o db_daemon
