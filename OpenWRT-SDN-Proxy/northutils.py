@@ -8,18 +8,11 @@ import socket
 import pickle
 import time
 from flask import jsonify
+import db_daemon
 
 ########################### Utility functions used on the API paths ##############################
 
 possible_configs = ["ipv4","dhcp","dhcp_static","dhcp_relay","RIP","QoS","DNS","fw"]
-
-# INFO do socket db_daemon (recebimento de configs)
-HOST = "127.0.0.1"
-PORT = 65001
-
-# INFO do socket de envio e recebimento de listagens da northboundAPI
-HOST_LIST = "127.0.0.1"
-PORT_LIST = 65003
 
 # Reads the key file and returns it's contents in byte format, ready to be used for SSL or JWT token encoding
 def get_key(file_name):
@@ -29,6 +22,24 @@ def get_key(file_name):
         file.close()
         
     return key
+
+# Coleta as informações de inicialização da northboundAPI
+def startup_north():
+    
+    # Se conecta ao banco de dados do controller
+    conn = sqlite3.connect("database/controller.db")
+    cursor = conn.cursor()
+    # Pega as configurações da northboundAPI
+    cursor.execute("select * from northboundAPI where id = 1;")
+    result = cursor.fetchall()
+    
+    # Dicionários das configs
+    startup_config = {"port":int(result[0][1]),
+                      "address":result[0][2]}
+    
+    conn.close()
+    
+    return startup_config
 
 
 # Return array - [0] true if decoded successfully or false if error, [1] decoded jwt if true or error message if false
@@ -215,10 +226,13 @@ def send_list_query_to_db(query_type,params,sub_config):
         config = {'global':query_type,'params':params}
     else:
         config = {'global':query_type,'params':params,'sub_config':sub_config}
+        
+    # Carrega as configurações do db_daemon
+    db_config = db_daemon.startup_db()
     
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # cria o obj socket | AF_INET p/ IPv4 | SOCK_STREAM -> p/ TCP
         # Se conecta com o db_daemon
-        s.connect((HOST, PORT))
+        s.connect((db_config["address"], db_config["port"]))
         
         # Transforma o json a ser enviado em um tipo serializado para o socket
         send_data = json.dumps(config).encode('utf-8')
@@ -241,7 +255,7 @@ def send_list_query_to_db(query_type,params,sub_config):
                 received_dict = json.loads(b.decode('utf-8'))
             except json.decoder.JSONDecodeError as err:
                     pass
-                
+            
             
             try:
                 # Verifica se o último resultado da busca já foi enviado
@@ -273,12 +287,8 @@ class Config():
         # Loop que verifica se os campos enviados são estão dentro dos válidos
         for rule_param in self.config_body.keys():
             if rule_param not in rule_parameters:
-                return False
+                return [False,"Not all rule parameters were sent"]
             parameter_counter += 1
-        
-        # Se a quantidade de parâmetros enviados diferente da quantidade obrigatória
-        if parameter_counter != len(rule_parameters):
-            return False
         
         # Pega um array com o nome de todas as configurações
         known_configs_keys = known_parameters.keys()
@@ -286,7 +296,25 @@ class Config():
         # Se o tipo de configuração recebido não estiver entre
         # as válidas retorne False
         if self.config_body["type"] not in known_configs_keys:
-            return False
+            return [False,"Unkown config type"]
+        
+         # Se a quantidade de parâmetros enviados diferente da quantidade obrigatória
+        if self.config_body["type"] == "fw":
+            if "name" not in self.config_body["fields"].keys():
+                return [False,"'name' parameter is necessary for firewall configuration"]
+            
+            # Verifica se o src e dest são wan ou lan
+            if "src" in self.config_body["fields"].keys():
+                if self.config_body["fields"]["src"] != "lan" and self.config_body["fields"]["src"] != "wan":
+                    return [False,"'src' must be either wan or lan"]
+
+            if "dest" in self.config_body["fields"].keys():
+                if self.config_body["fields"]["dest"] != "lan" and self.config_body["fields"]["dest"] != "wan":
+                    return [False,"'dest' must be either wan or lan"]
+            
+            pass
+        elif parameter_counter != len(rule_parameters):
+            return [False,"Not all required rule fields were sent"]
         
         # Pega os parâmetros possíveis dessa configuração
         known_config = known_parameters[self.config_body["type"]]
@@ -303,7 +331,7 @@ class Config():
         # enviado dentre o conjunto de possíveis
         for parameter in sent_parameters:
             if parameter not in known_configs:
-                return False
+                return [False,"Parametes {} is not valid for this config type".format(parameter)]
             
 
         # Loop de verificação das configurações de agendamento
@@ -311,14 +339,14 @@ class Config():
         schedule_recv_keys = self.config_body["schedule"].keys()
         for schedule in schedule_recv_keys:
             if schedule not in schedule_keys:
-                return False
+                return [False,"Schedule parameter {} not supported".format(schedule)]
         
         # Se estiverem faltando campos retorne Falso
         if len(schedule_recv_keys) != len(schedule_keys):
-            return False    
+            return [False,"Not all schedule keys were sent"]    
         
         # Se chegar até aqui a configuração é válida
-        return True
+        return [True,"Success"]
     
     # Método utilizado para checar a validez de uma criação de grupo lógico
     def check_group(self, known_groups):
@@ -401,18 +429,14 @@ class Config():
     # Método utilizado para enviar a configuração recebida para o db_daemon   
     def send(self,config_array):
         
+        # Carrega as configurações do db_daemon
+        db_config = db_daemon.startup_db()
+        
         # Loop para envio individual de cada uma das regras
         for config in config_array:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect((HOST, PORT)) # conecta ao servidor
+            s.connect((db_config["address"], db_config["port"])) # conecta ao servidor
             send_data = json.dumps(config).encode('utf-8')
             s.sendall(send_data) # manda a mensagem
             time.sleep(0.01)
             s.close()           
-            
-            # #print("Enviar regra para o socket do serviço de inserção no banco") # Será que vai demorar muito com muitas regras? Buscar no banco não seria melhor?
-                # with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # cria o obj socket | AF_INET p/ IPv4 | SOCK_STREAM -> p/ TCP
-                #     s.connect((HOST, PORT)) # conecta ao servidor
-                #     send_data = json.dumps(post_data).encode('utf-8')
-                #     s.sendall(send_data) # manda a mensagem
-        
