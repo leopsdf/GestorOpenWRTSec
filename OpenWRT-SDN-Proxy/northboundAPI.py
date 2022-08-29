@@ -3,28 +3,25 @@ import northutils
 import socket
 import json
 import re
+import configparser
 
 ############################### FLASK API - PATHs ##########################################
         
 app = Flask(__name__)
 
-# INFO do socket db_daemon (recebimento de configs)
-HOST = "127.0.0.1"
-PORT = 65001
-
 known_groups = []
 known_host_group_relation = {}
 
 ## Force HTTPS connections to the API
-@app.before_request
-def before_request():
-    if not request.is_secure:
-        url = request.url.replace('http://', 'https://', 1)
-        code = 301
-        return redirect(url, code=code)
+# @app.before_request
+# def before_request():
+#     if not request.is_secure:
+#         url = request.url.replace('http://', 'https://', 1)
+#         code = 301
+#         return redirect(url, code=code)
 
 
-# API path to generate the JWT Token based on the passed data
+# API path to generate the JWT Token based on th0e passed data
 @app.route("/admin/token", methods=['POST'])
 def jwt_token():
     
@@ -40,7 +37,7 @@ def jwt_token():
     
     return jwt_token_json
 
-######################### APIs de listagem #############################
+######################### APIs de listagem de host por parâmetros#############################
 
 @app.route("/admin/list/host/", defaults={'group_name':'all'},methods=['GET'])
 @app.route("/admin/list/host/<group_name>",methods=['GET'])
@@ -69,6 +66,209 @@ def list_by_group(group_name):
         
     # Retorna o resultado para o usuário
     return jsonify({"Status":"Success", "Results":result})
+
+
+
+######################### APIs de listagem de configuração por grupo ################################
+
+@app.route("/admin/list/config/dhcp/group", defaults={'group_name':'all'})
+@app.route("/admin/list/config/dhcp/group/<group_name>")
+def list_by_group_dhcp(group_name):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    # Se não for passado o nome do grupo selecione todos
+    if group_name == "all":
+        params = {"logical_group":"all"}
+        pass
+    # Caso contrário utilize o nome do grupo passado como argumento
+    else:
+        # Seleciona todos os grupos cadastrados na ferramenta
+        known_groups = northutils.load_all_groups()
+        # Verifica se o nome do grupo usado como filtro existe
+        if group_name not in known_groups:
+            # Se não existir retorna mensagem de erro
+            return jsonify({"ERROR":"Group name '{}' is not a known group.".format(group_name)})
+        
+        # Parâmetros enviados para requisição ao banco de dados
+        params = {"logical_group":group_name}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"dhcp")
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+@app.route("/admin/list/config/dhcp_relay/group", defaults={'dhcp_relay':'all'})
+@app.route("/admin/list/config/dhcp_relay/group/<group_name>")
+def list_by_group_dhcp_relay(group_name):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    # Se não for passado o nome do grupo selecione todos
+    if group_name == "all":
+        params = {"logical_group":"all"}
+        pass
+    # Caso contrário utilize o nome do grupo passado como argumento
+    else:
+        # Seleciona todos os grupos cadastrados na ferramenta
+        known_groups = northutils.load_all_groups()
+        # Verifica se o nome do grupo usado como filtro existe
+        if group_name not in known_groups:
+            # Se não existir retorna mensagem de erro
+            return jsonify({"ERROR":"Group name '{}' is not a known group.".format(group_name)})
+        
+        # Parâmetros enviados para requisição ao banco de dados
+        params = {"logical_group":group_name}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"dhcp_relay")
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+@app.route("/admin/list/config/ipv4/group", defaults={'ipv4':'all'})
+@app.route("/admin/list/config/ipv4/group/<group_name>")
+def list_by_group_ipv4(group_name):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    # Se não for passado o nome do grupo selecione todos
+    if group_name == "all":
+        params = {"logical_group":"all"}
+        pass
+    # Caso contrário utilize o nome do grupo passado como argumento
+    else:
+        # Seleciona todos os grupos cadastrados na ferramenta
+        known_groups = northutils.load_all_groups()
+        # Verifica se o nome do grupo usado como filtro existe
+        if group_name not in known_groups:
+            # Se não existir retorna mensagem de erro
+            return jsonify({"ERROR":"Group name '{}' is not a known group.".format(group_name)})
+        
+        # Parâmetros enviados para requisição ao banco de dados
+        params = {"logical_group":group_name}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"ipv4")
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+@app.route("/admin/list/config/qos/group", defaults={'qos':'all'})
+@app.route("/admin/list/config/qos/group/<group_name>")
+def list_by_group_qos(group_name):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    # Se não for passado o nome do grupo selecione todos
+    if group_name == "all":
+        params = {"logical_group":"all"}
+        pass
+    # Caso contrário utilize o nome do grupo passado como argumento
+    else:
+        # Seleciona todos os grupos cadastrados na ferramenta
+        known_groups = northutils.load_all_groups()
+        # Verifica se o nome do grupo usado como filtro existe
+        if group_name not in known_groups:
+            # Se não existir retorna mensagem de erro
+            return jsonify({"ERROR":"Group name '{}' is not a known group.".format(group_name)})
+        
+        # Parâmetros enviados para requisição ao banco de dados
+        params = {"logical_group":group_name}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"qos")
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+
+@app.route("/admin/list/config/rip/group", defaults={'rip':'all'})
+@app.route("/admin/list/config/rip/group/<group_name>")
+def list_by_group_rip(group_name):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    # Se não for passado o nome do grupo selecione todos
+    if group_name == "all":
+        params = {"logical_group":"all"}
+        pass
+    # Caso contrário utilize o nome do grupo passado como argumento
+    else:
+        # Seleciona todos os grupos cadastrados na ferramenta
+        known_groups = northutils.load_all_groups()
+        # Verifica se o nome do grupo usado como filtro existe
+        if group_name not in known_groups:
+            # Se não existir retorna mensagem de erro
+            return jsonify({"ERROR":"Group name '{}' is not a known group.".format(group_name)})
+        
+        # Parâmetros enviados para requisição ao banco de dados
+        params = {"logical_group":group_name}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"rip")
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+@app.route("/admin/list/config/dns/group", defaults={'dns':'all'})
+@app.route("/admin/list/config/dns/group/<group_name>")
+def list_by_group_dns(group_name):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    # Se não for passado o nome do grupo selecione todos
+    if group_name == "all":
+        params = {"logical_group":"all"}
+        pass
+    # Caso contrário utilize o nome do grupo passado como argumento
+    else:
+        # Seleciona todos os grupos cadastrados na ferramenta
+        known_groups = northutils.load_all_groups()
+        # Verifica se o nome do grupo usado como filtro existe
+        if group_name not in known_groups:
+            # Se não existir retorna mensagem de erro
+            return jsonify({"ERROR":"Group name '{}' is not a known group.".format(group_name)})
+        
+        # Parâmetros enviados para requisição ao banco de dados
+        params = {"logical_group":group_name}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"dns")
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+@app.route("/admin/list/config/dhcp_static/group", defaults={'dhcp_static':'all'})
+@app.route("/admin/list/config/dhcp_static/group/<group_name>")
+def list_by_group_dhcp_static(group_name):
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "config_list"
+    # Se não for passado o nome do grupo selecione todos
+    if group_name == "all":
+        params = {"logical_group":"all"}
+        pass
+    # Caso contrário utilize o nome do grupo passado como argumento
+    else:
+        # Seleciona todos os grupos cadastrados na ferramenta
+        known_groups = northutils.load_all_groups()
+        # Verifica se o nome do grupo usado como filtro existe
+        if group_name not in known_groups:
+            # Se não existir retorna mensagem de erro
+            return jsonify({"ERROR":"Group name '{}' is not a known group.".format(group_name)})
+        
+        # Parâmetros enviados para requisição ao banco de dados
+        params = {"logical_group":group_name}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,"dhcp_static")
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+######################### APIs de listagem de config por parâmetros#############################
 
 # dhcp
 @app.route("/admin/list/config/dhcp", defaults={'interface':'all','start':'all','limit_dhcp':'all','leasetime':'all'},methods=['GET'])
@@ -358,7 +558,6 @@ def list_config_qos(interface,enabled,classgroup,overhead,download,upload):
     return jsonify({"Status":"Success", "Results":result})
 
 # dns
-DNS_config = ["address"]
 @app.route("/admin/list/config/dns", defaults={'address':'all'},methods=['GET'])
 @app.route("/admin/list/config/dns/<address>", methods=['GET'])
 def list_config_dns(address):
@@ -382,9 +581,7 @@ def list_config_dns(address):
     # Retorna o resultado para o usuário
     return jsonify({"Status":"Success", "Results":result})
     
-########################################################################
-
-
+################# APIs para configuração de grupos, hosts e configurações ###################################
 
 # API para criação de novos grupos
 @app.route("/admin/group",methods=['POST'])
@@ -511,7 +708,8 @@ def config():
         sent_config = northutils.Config(post_data)
         
         # Verifica se a configuração é válida
-        if sent_config.check_parameters_rule(known_parameters_json):
+        check_config = sent_config.check_parameters_rule(known_parameters_json)
+        if check_config[0]:
 
             # Carrega os grupos conhecidos
             known_groups = northutils.load_all_groups()
@@ -530,7 +728,15 @@ def config():
                     # Se não existir retorna mensagem de erro
                     return jsonify({"ERROR":"Target name '{}' is not a known group.".format(target_name)})
                 
-                for ip in post_data["targets"][target_name]:
+                # Verfica se a configuração vai ser aplicada para todos os hosts do grupo
+                if post_data["targets"][target_name][0] == "all":
+                    ips = known_host_group_relation[target_name]
+                
+                # Se não for all aplica a configuração para todos os ips passados
+                else:
+                    ips = post_data["targets"][target_name]
+                
+                for ip in ips:
                     
                     if ip not in known_hosts:
                         return jsonify({"ERROR":"Host '{}' doesnt exist in the database.".format(ip)})
@@ -620,17 +826,17 @@ def config():
                 return jsonify({"ERROR":"The rule is a duplicate of previously existing rule. - The rule is a duplicate for the following targets: {}".format(duplicate_rule),
                                 "INFO":"If there were any other targets in your config they have been received and saved."})
         else:
-            return jsonify({"ERROR":"Invalid fields or parameters sent."})
+            return jsonify({"ERROR":"{}".format(check_config[1])})
         
     else:
         response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
         return jsonify(response_dict)
 
 # Função principal da API northbound
-def northbound_main():
+def northbound_main(north_config):
     global hash_array
     hash_array = []
-    
+
     # Deixar em memórias os parâmetros das configurações
     global known_parameters_json
     known_parameters_json = northutils.load_all_possible_parameters()
@@ -644,8 +850,12 @@ def northbound_main():
         hash_array.append(hash_name)
     
     # Flask webApp configuration - running on SSL
-    app.run(debug=True,host="0.0.0.0",port=8080, ssl_context=('./keys/northbound.crt','./keys/northbound.key'))
+    #app.run(debug=True,host="0.0.0.0",port=8080, ssl_context=('./keys/northbound.crt','./keys/northbound.key'))
+    #app.run(debug=True,host=north_config["host"],port=north_config["port"])
+    app.run(debug=True,host=north_config["address"],port=north_config["port"])
 
 if __name__ == "__main__":
-    # Inicializa a API northbound
-    northbound_main()
+    
+    north_config = northutils.startup_north()
+    
+    northbound_main(north_config)

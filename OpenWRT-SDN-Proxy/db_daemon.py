@@ -10,10 +10,12 @@ import socket
 import sqlite3
 import json
 import time
+import configparser
+import southutils
 
 # INFO do socket db_daemon (recebimento de configs)
-HOST = "127.0.0.1"
-PORT = 65001
+#HOST = "127.0.0.1"
+#PORT = 65001
 
 # INFO envio de configs para southbound
 HOST_SOUTH = "127.0.0.1"
@@ -246,7 +248,7 @@ def process_recv_config_list(received_dict, initial_query):
         
         query = initial_query+final_query
     
-    print("final query: {}".format(query))
+    print("final_query: {}".format(query))
     
     conn = sqlite3.connect("database/configs.db")
     cursor = conn.cursor()
@@ -319,12 +321,122 @@ def pre_send_list_result(received_dict,initial_query,conn,sub_config):
     # Função de envio dos resultados para northbound interface
     send_result_list_loop(send_result,conn)
 
+# Função que prepara uma configuração para ser enviada para a interface southbound
+def db_send_to_south(payload):
+    
+    # Pega as configurações da interface sul
+    south_config = southutils.startup_south()
+    
+    # Pega as configurações do socket da API sul
+    southboundSocket_config = south_config[1]
+    
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s: # cria o obj socket | AF_INET p/ IPv4 | SOCK_STREAM -> p/ TCP
+        # Se conecta com o db_daemon
+        s.connect((southboundSocket_config["address"], southboundSocket_config["port"]))
+        
+        # Pega a porta do dispositivo gerenciado
+        conn = sqlite3.connect("database/hosts_groups.db")
+        cursor = conn.cursor()
+        address = list(payload["targets"].values())[0][0]
+        cursor.execute("select port from openwrt where address = \"{}\";".format(address))
+        port = cursor.fetchall()
+        port = port[0][0]
+        
+        cursor.execute("select token from openwrt where address = \"{}\";".format(address))
+        token = cursor.fetchall()
+        token = token[0][0]
+        
+        # Pega os campos essenciais do payload
+        payload = {"action":payload["action"],
+                   "type":payload["type"],
+                   "fields":payload["fields"],
+                   "port":port,
+                   "schedule":payload["schedule"],
+                   "targets":address,
+                   "rule_hash":payload["rule_hash"],
+                   "token":token
+                   }
+        
+        # Transforma o json a ser enviado em um tipo serializado para o socket
+        send_data = json.dumps(payload).encode('utf-8')
+        
+        # Manda o dicionário da query
+        s.sendall(send_data)
+    
+# Função que recebe os parâmetros associados ao OpenWRT a ser configurado e cadastra na base de dados
+def process_recv_auth(payload):
+    
+    # Pega a porta do dispositivo gerenciado
+    conn = sqlite3.connect("database/hosts_groups.db")
+    cursor = conn.cursor()
+    cursor.execute("insert into openwrt (address,port,netmask,group_name,token) values (\"{}\",\"{}\",\"{}\",\"{}\",\"{}\");".format(payload["address"],
+                                                                                                                        payload["port"],
+                                                                                                                        payload["netmask"],
+                                                                                                                        "Default",
+                                                                                                                        payload["token"]))
+    conn.commit()
+    conn.close()
+    
+# Função que realiza a desautenticação de um dispositivo
+def process_recv_deauth(payload):
+    
+    # Deleta o registro associado ao openwrt
+    conn = sqlite3.connect("database/hosts_groups.db")
+    cursor = conn.cursor()
+    cursor.execute("delete from openwrt where token = \"{}\";".format(payload["token"]))
+    conn.commit()
+    conn.close()
+    
+    # Todas as configurações possíveis
+    possible_configs = ["ipv4","dhcp","dhcp_static","dhcp_relay","RIP","QoS","DNS","fw"]
+    
+    # Deleta o registro de todas as regras associadas
+    conn = sqlite3.connect("database/configs.db")
+    cursor = conn.cursor()
+    for config in possible_configs:
+        cursor.execute("delete from \"{}\" where address = \"{}\";".format(config,
+                                                                           payload["address"]))
+    conn.commit()
+    conn.close()
+    
+# Função que recebe o token antigo juntamente com o novo token
+def process_recv_switch(payload):
+    
+    # Pega a porta do dispositivo gerenciado
+    conn = sqlite3.connect("database/hosts_groups.db")
+    cursor = conn.cursor()
+    # Troca o token a ser utilizado
+    cursor.execute("update openwrt set token = \"{}\" where token = \"{}\";".format(payload["new_token"],
+                                                                                    payload["token"]))
+    conn.commit()
+    conn.close()
+    
+
+# Coleta as informações de inicialização do db_daemon
+def startup_db():
+    
+    # Se conecta ao banco de dados do controller
+    conn = sqlite3.connect("database/controller.db")
+    cursor = conn.cursor()
+    # Pega as configurações do db_daemon
+    cursor.execute("select * from db where id = 1;")
+    result = cursor.fetchall()
+    
+    # Dicionários das configs
+    startup_config = {"port":int(result[0][1]),
+                      "address":result[0][2]}
+    
+    conn.close()
+    
+    return startup_config    
+
+
 # Função que inicializa o socket para receber configs da northbound API
-def db_daemon_recv():
+def db_daemon_recv(db_config):
     
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         # Inicializando o socket
-        s.bind((HOST,PORT))
+        s.bind((db_config["address"],db_config["port"]))
         s.listen()
         # Loop que aguarda conexões
         while True:
@@ -348,6 +460,9 @@ def db_daemon_recv():
                     if received_dict["global"] == "config":
                         # Realiza o processamento da configuraçaõ
                         process_recv_configs(received_dict)
+                        
+                        db_send_to_south(received_dict)
+                        
                         break
                     elif received_dict["global"] == "group":
                         # Realiza o processamento da configuração de grupo
@@ -429,6 +544,21 @@ def db_daemon_recv():
 
                         break
                     
+                    elif received_dict["global"] == "auth":
+                        # Insere o openwrt gerenciado
+                        process_recv_auth(received_dict)
+                        break
+                    
+                    elif received_dict["global"] == "deauth":
+                        # Processa a desautenticação
+                        process_recv_deauth(received_dict)
+                        break
+                    
+                    elif received_dict["global"] == "switch":
+                        # Fazer função para troca de endereço/porta
+                        break
+                        
+                    
                 except json.decoder.JSONDecodeError as err:
                     pass
                 
@@ -451,10 +581,8 @@ def db_daemon_send(config_json,SEND_HOST,SEND_PORT):
 
 if __name__ == "__main__":
     
-    #db = DB_daemon("a", rule_dict)
-    #result = db.create_query_config()
-    #print(result)
-    # Fazer a escuta e envio por fork
-    db_daemon_recv()
+    db_config = startup_db()
+    
+    db_daemon_recv(db_config)
     
     
