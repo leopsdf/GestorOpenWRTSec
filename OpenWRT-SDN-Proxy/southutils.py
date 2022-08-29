@@ -19,7 +19,7 @@ def startup_south():
     
     # Dicionários das configs
     startup_config = [{"port":int(result_API[0][1]),
-                      "address":result_socket[0][2]},
+                      "address":result_API[0][2]},
                       {"port":int(result_socket[0][1]),
                        "address":result_socket[0][2]}]
     
