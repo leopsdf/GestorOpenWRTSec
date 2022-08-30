@@ -68,7 +68,7 @@ def check_deauth_params(payload):
     if not "token" in payload.keys():
         return [False,jsonify({"STATUS":"ERROR","INFO":"No token received."})]
     
-    if len(payload.keys()) > 1:
+    if len(payload.keys()) > 2:
         return [False,jsonify({"STATUS":"ERROR","INFO":"Aditional parameters besides token were sent."})]
     
     # Verifica se o endereço IP é válido

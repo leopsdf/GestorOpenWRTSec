@@ -175,19 +175,50 @@ def process_recv_hosts(received_dict):
 
     db  = DB_daemon("database/hosts_groups.db", received_dict)
     queries = []
+    # Todas as configurações possíveis
+    possible_configs = ["ipv4","dhcp","dhcp_static","dhcp_relay","RIP","QoS","DNS","fw"]
+        
     if received_dict["action"] == "insert" or received_dict["action"] == "update":
         
         # Loop para criação de query para atualizar o grupo associado a um endereço
         for host in received_dict["targets"]:
             query = "update openwrt set group_name = \"{}\" where address = \"{}\";".format(received_dict["group_name"],host)
             queries.append(query)
+    
+        # Atualiza o registro de todas as regras associadas para o group_name passado
+        conn = sqlite3.connect("database/configs.db")
+        cursor = conn.cursor()
+        
+        hosts = received_dict["targets"]
+        for host in hosts:
+        
+            for config in possible_configs:
+                cursor.execute("update \"{}\" set logical_group = \"{}\" where openwrt_ipv4 = \"{}\";".format(config,
+                                                                           received_dict["group_name"],
+                                                                           host))
+        conn.commit()
+        conn.close()
         
     elif received_dict["action"] == "delete":
         
         # Loop para criação de queries para remover hosts de um grupo, colocando eles no Default
         for host in received_dict["targets"]:
-            query_update_hosts = "update openwrt set group_name = \"{}\" where address = \"{}\";".format("Default",host)
+            query_update_hosts = "update openwrt set logical_group = \"{}\" where address = \"{}\";".format("Default",host)
             queries.append(query_update_hosts)
+            
+        # Atualiza o registro de todas as regras associadas para group_name Default
+        conn = sqlite3.connect("database/configs.db")
+        cursor = conn.cursor()
+        
+        hosts = received_dict["targets"]
+        for host in hosts:
+        
+            for config in possible_configs:
+                cursor.execute("update \"{}\" set group_name = \"{}\" where openwrt_ipv4 = \"{}\";".format(config,
+                                                                           "Default",
+                                                                           host))
+        conn.commit()
+        conn.close()
         
     db.apply(queries)
     
@@ -394,7 +425,7 @@ def process_recv_deauth(payload):
     conn = sqlite3.connect("database/configs.db")
     cursor = conn.cursor()
     for config in possible_configs:
-        cursor.execute("delete from \"{}\" where address = \"{}\";".format(config,
+        cursor.execute("delete from \"{}\" where openwrt_ipv4 = \"{}\";".format(config,
                                                                            payload["address"]))
     conn.commit()
     conn.close()
@@ -555,7 +586,8 @@ def db_daemon_recv(db_config):
                         break
                     
                     elif received_dict["global"] == "switch":
-                        # Fazer função para troca de endereço/porta
+                        # Processa o switch
+                        process_recv_switch(received_dict)
                         break
                         
                     

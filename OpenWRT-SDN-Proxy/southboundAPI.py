@@ -156,6 +156,8 @@ def southbound_auth():
     # Coloca em formato de dicionário
     post_data = request.get_json(force=True)
     
+    print(post_data)
+    
     # Verifica os parâmetros recebidos
     check_result = southutils.check_auth_params(post_data)
     if check_result[0]:

@@ -769,6 +769,7 @@ def config():
                         
                     # Insere a assinatura única da regra no corpo da mesma
                     rule_dict = northutils.hash_rule(rule_dict)
+                    print(rule_dict)
                     
                     # Retorna a ação para delete
                     if post_data["action"] == "delete":

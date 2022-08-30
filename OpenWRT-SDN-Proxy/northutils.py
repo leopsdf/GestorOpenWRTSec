@@ -191,7 +191,8 @@ def hash_rule(rule_dict):
     #         target_string += entity
     target_keys = rule_dict["targets"].keys()
     for target in target_keys:
-        target_string += target + rule_dict["targets"][target][0]
+        #target_string += target + rule_dict["targets"][target][0]
+        target_string += rule_dict["targets"][target][0]
     
     # Ordena as chaves do campo schedule em ordem alfabética, para que assim
     # caso sejam enviadas em ordem diferente não haja mudança no hash da regra
