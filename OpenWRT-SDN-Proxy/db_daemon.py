@@ -124,6 +124,28 @@ class DB_daemon():
         
         return send_result
         
+    # Função que seleciona os grupos
+    def apply_select_group(self,query):
+        
+        conn = sqlite3.connect(self.file)
+        cursor = conn.cursor()
+        
+        # Executa a query
+        cursor.execute(query)
+        # Pega os resultados da query
+        results = cursor.fetchall()
+        
+        # Se não houver resultados para o filtro aplicado retorne a mensagem abaixo
+        if len(results) == 0:
+            return [{"Response":"No hosts found"}]
+        
+        send_result = []
+        # Loop de confecção de dicionários para resposta da requisição bem estruturada
+        for result in results:
+            dict_result = {"Group name":result[1]}
+            send_result.append(dict_result)
+        
+        return send_result
 
     # Função que executa queries recebidas (SOMENTE DELETE)
     def delete(self):
@@ -243,6 +265,21 @@ def process_recv_hosts_list(received_dict):
     # Retorna o resultado da query
     return result
 
+# Função que lista os grupos lógicos rastreados pela solução
+def process_recv_groups_list(received_dict):
+
+    # Instancia objeto de queries com o banco de dados
+    db  = DB_daemon("database/hosts_groups.db", received_dict)
+    
+    # Seleciona todos os grupos lógicos
+    query = "select * from groups;"
+
+    # Executa a query definida acima    
+    result = db.apply_select_group(query)    
+    
+    # Retorna o resultado da query
+    return result
+
 # Função que pega os parâmetros de listagem para uma determinada configuração e usa para fazer busca no DB
 def process_recv_config_list(received_dict, initial_query):
 
@@ -293,6 +330,7 @@ def process_recv_config_list(received_dict, initial_query):
 
 # Função que retorna o resultado da listagem para a northboundAPI
 def send_result_list_loop(result,conn):
+    print(result)
     iterator = 0
     # Loop para retorno dos resultados para NorthboundAPI
     while iterator <= len(result):
@@ -574,6 +612,16 @@ def db_daemon_recv(db_config):
                         send_result_list_loop(result,conn)
 
                         break
+                    
+                    elif received_dict["global"] == "group_list":
+                        # Realiza o processa da listagem de hosts
+                        result = process_recv_groups_list(received_dict)
+                        
+                        # Função de envio dos resultados para northbound interface
+                        send_result_list_loop(result,conn)
+
+                        break
+                    
                     
                     elif received_dict["global"] == "auth":
                         # Insere o openwrt gerenciado

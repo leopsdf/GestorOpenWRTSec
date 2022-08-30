@@ -68,6 +68,23 @@ def list_by_group(group_name):
     return jsonify({"Status":"Success", "Results":result})
 
 
+######################### APIs de listagem de grupos lógicos#############################
+
+@app.route("/admin/list/group",methods=['GET'])
+def list_group():
+    
+    # Define o identificador da requisição. Usado pelo db_daemon para saber o que ele está recebendo
+    query_type = "group_list"
+    # Se não for passado o nome do grupo selecione todos
+    params = {"group_name":"all"}
+    
+    # Envia o tipo da query e seus parâmetros para o db_daemon
+    result = northutils.send_list_query_to_db(query_type, params,None)
+        
+    # Retorna o resultado para o usuário
+    return jsonify({"Status":"Success", "Results":result})
+
+
 
 ######################### APIs de listagem de configuração por grupo ################################
 
@@ -769,7 +786,6 @@ def config():
                         
                     # Insere a assinatura única da regra no corpo da mesma
                     rule_dict = northutils.hash_rule(rule_dict)
-                    print(rule_dict)
                     
                     # Retorna a ação para delete
                     if post_data["action"] == "delete":
