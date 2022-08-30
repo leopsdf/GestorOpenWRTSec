@@ -23,11 +23,12 @@ json_config = {"ipv4": ipv4_config,
 def create_host_db():
     conn = sqlite3.connect("./host_config.db")
     cursor = conn.cursor()
-    cursor.execute("create table host (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, token TEXT, port INTEGER, netmask TEXT, address TEXT, auth INTEGER);")
-    cursor.execute("insert into host (token,port,netmask,address,auth) values (\"{}\",\"{}\",\"{}\",\"{}\",\"{}\")".format("Default",
+    cursor.execute("create table host (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, token TEXT, port INTEGER, netmask TEXT, address TEXT, auth INTEGER,token_status INTEGER);")
+    cursor.execute("insert into host (token,port,netmask,address,auth,token_status) values (\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\")".format("Default",
                                                                                                                50000,
                                                                                                                "255.255.255.0",
                                                                                                                "127.0.0.1",
+                                                                                                               0,
                                                                                                                0))
     conn.commit()
     conn.close()

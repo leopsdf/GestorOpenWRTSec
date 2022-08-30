@@ -19,7 +19,8 @@ def startup_process():
                       "port":int(result[0][2]),
                       "netmask":result[0][3],
                       "address":result[0][4],
-                      "auth":int(result[0][5])}
+                      "auth":int(result[0][5]),
+                      "token_status":int(result[0][6])}
     
     conn.close()
     
@@ -179,7 +180,7 @@ def delete_config(rule_hash, rule_type,config_dict):
         os.system("uci delete dhcp.{}.leasetime='{}'".format(config_dict["fields"]["interface"], config_dict["fields"]["leasetime"]))
         
         os.system("uci commit dhcp")
-        os.system("service dhcp restart")
+        os.system("service odhcpd restart")
         
     # Remove a configuração de QoS
     elif rule_type == "QoS":
@@ -197,7 +198,7 @@ def delete_config(rule_hash, rule_type,config_dict):
     elif rule_type == "dhcp_relay":
         # Remove a configuração do dhcp_relay a partir do hash
         os.system("sed -e '/{}/,+4d' -i /etc/config/dhcp".format(config_dict["rule_hash"]))
-        os.system("service dhcp restart")    
+        os.system("service odhcpd restart")    
     
     # Remove a regra da base de dados 
     cursor.execute("delete from {} where rule_hash = '{}';".format(rule_type,rule_hash))
@@ -238,7 +239,7 @@ def dhcp_config(config_dict):
         os.system("uci set dhcp.{}.leasetime='{}'".format(config_dict["fields"]["interface"], config_dict["fields"]["leasetime"]))
         
         os.system("uci commit dhcp")
-        os.system("/etc/init.d/dhcp restart")
+        os.system("/etc/init.d/odhcpd restart")
 
 # Função para configuração de QoS
 def qos_config(config_dict):
@@ -325,7 +326,7 @@ def dhcp_relay_config(config_dict):
             pass
     
     # Reinicializa o serviço
-    os.system("service dhcp restart")
+    os.system("service odhcpd restart")
         
         
 

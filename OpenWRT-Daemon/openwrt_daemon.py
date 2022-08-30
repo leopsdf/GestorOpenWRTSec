@@ -3,6 +3,7 @@ import requests
 import json
 import daemon_utils
 import sqlite3
+import create_token
 
 app = Flask(__name__)
 
@@ -82,6 +83,7 @@ def try_auth(config_dict):
                     "netmask":config_dict["netmask"],
                     "token":config_dict["token"]}
     
+    
     try:
         requested = requests.post("http://{}:{}/auth".format(controller_config["address"],controller_config["port"]), json=auth_payload)
         
@@ -126,9 +128,16 @@ if __name__ == "__main__":
     
     # # FAZER PROCESSAMENTO DA CRONTAB
     
+    # Verifica se já existe um token
+    if startup_config["token_status"] == 0:
+        token = create_token.create()
+        # Coloca o token na base de dados
+        create_token.update_token(token)
+    
+    new_startup_config = daemon_utils.startup_process()
     # Verifica se já está autenticado
     if startup_config["auth"] == 0:
-        try_auth(startup_config)
+        try_auth(new_startup_config)
     
     # # Inicializa a API do daemon
-    app.run(debug=True, host=startup_config["address"], port=startup_config["port"])    
+    app.run(debug=True, host=startup_config["address"], port=new_startup_config["port"])    
