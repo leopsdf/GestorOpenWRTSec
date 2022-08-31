@@ -42,7 +42,7 @@ def controller_config():
                       "address":result[0][3]}
     
     conn.close()
-    
+    pass
     return controller_config
 
 # Função que executa queries recebidas (SOMENTE INSERT)
@@ -157,8 +157,7 @@ def delete_config(rule_hash, rule_type,config_dict):
         #Remove a configuração do arquivo baseado no hash e em N (número de parâmetros) linhas em seguida
         os.system("sed -e '/{}/,+{}d' -i {}".format(rule_hash,remove_size,FIREWALL_FILE))
         
-        # Reinicializa o serviço
-        os.system("/etc/init.d/firewall restart") 
+        os.system("/etc/init.d/firewall restart")
     
     # Remove a configuração de DNS
     elif rule_type == "DNS":
@@ -195,7 +194,7 @@ def delete_config(rule_hash, rule_type,config_dict):
     elif rule_type == "RIP":
         # Remove a configuração do RIP a partir do hash
         os.system("sed -e '/{}/,+5d' -i /etc/config/network".format(config_dict["rule_hash"]))
-        os.system("/etc/init.d/network restart")
+        os.system("/etc/inid.d/network restart")
         
     # Remove a configuração de dhcp_relay
     elif rule_type == "dhcp_relay":
@@ -272,7 +271,7 @@ def qos_config(config_dict):
             pass
     
     # Reinicializa o serviço
-    os.system("/etc/init.d/qos restart") 
+    os.system("/etc/init.d/qos restart")
     
 # Função para configuração de RIP
 def RIP_config(config_dict):
@@ -301,7 +300,7 @@ def RIP_config(config_dict):
             pass
     
     # Reinicializa o serviço
-    os.system("/etc/init.d/network restart") 
+    os.system("/etc/init.d/network restart")
         
 # Função para configuração de dhcp_relay
 def dhcp_relay_config(config_dict):
@@ -329,7 +328,7 @@ def dhcp_relay_config(config_dict):
             pass
     
     # Reinicializa o serviço
-     os.system("/etc/init.d/odhcpd restart") 
+    os.system("/etc/init.d/odhcpd restart")
         
         
 
