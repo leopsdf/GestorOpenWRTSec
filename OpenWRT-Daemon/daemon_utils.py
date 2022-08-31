@@ -1,8 +1,8 @@
 import os
 import sqlite3
 
-#FIREWALL_FILE = "/etc/config/firewall"
-FIREWALL_FILE = "./firewall"
+FIREWALL_FILE = "/etc/config/firewall"
+#FIREWALL_FILE = "./firewall"
 
 # Coleta as informações do daemon
 def startup_process():
@@ -123,7 +123,7 @@ def apply_firewall_config(payload,rule_hash):
             pass
     
     # Reinicializa o serviço
-    os.system("service firewall restart")            
+    os.system("/etc/init.d/firewall restart")            
 
 # Remove configuração do arquivo
 def delete_config(rule_hash, rule_type,config_dict):
@@ -156,6 +156,9 @@ def delete_config(rule_hash, rule_type,config_dict):
         
         #Remove a configuração do arquivo baseado no hash e em N (número de parâmetros) linhas em seguida
         os.system("sed -e '/{}/,+{}d' -i {}".format(rule_hash,remove_size,FIREWALL_FILE))
+        
+        # Reinicializa o serviço
+        os.system("/etc/init.d/firewall restart") 
     
     # Remove a configuração de DNS
     elif rule_type == "DNS":
@@ -180,25 +183,25 @@ def delete_config(rule_hash, rule_type,config_dict):
         os.system("uci delete dhcp.{}.leasetime='{}'".format(config_dict["fields"]["interface"], config_dict["fields"]["leasetime"]))
         
         os.system("uci commit dhcp")
-        os.system("service odhcpd restart")
+        os.system("/etc/init.d/odhcpd restart")
         
     # Remove a configuração de QoS
     elif rule_type == "QoS":
         # Remove a configuração do QoS a partir do hash
         os.system("sed -e '/{}/,+6d' -i /etc/config/qos".format(config_dict["rule_hash"]))
-        os.system("service qos restart")
+        os.system("/etc/init.d/qos restart")
     
     # Remove a configuração de RIP
     elif rule_type == "RIP":
         # Remove a configuração do RIP a partir do hash
         os.system("sed -e '/{}/,+5d' -i /etc/config/network".format(config_dict["rule_hash"]))
-        os.system("service network restart")
+        os.system("/etc/init.d/network restart")
         
     # Remove a configuração de dhcp_relay
     elif rule_type == "dhcp_relay":
         # Remove a configuração do dhcp_relay a partir do hash
         os.system("sed -e '/{}/,+4d' -i /etc/config/dhcp".format(config_dict["rule_hash"]))
-        os.system("service odhcpd restart")    
+        os.system("/etc/init.d/odhcpd restart")    
     
     # Remove a regra da base de dados 
     cursor.execute("delete from {} where rule_hash = '{}';".format(rule_type,rule_hash))
@@ -269,7 +272,7 @@ def qos_config(config_dict):
             pass
     
     # Reinicializa o serviço
-    os.system("service qos restart")
+    os.system("/etc/init.d/qos restart") 
     
 # Função para configuração de RIP
 def RIP_config(config_dict):
@@ -298,7 +301,7 @@ def RIP_config(config_dict):
             pass
     
     # Reinicializa o serviço
-    os.system("service network restart")
+    os.system("/etc/init.d/network restart") 
         
 # Função para configuração de dhcp_relay
 def dhcp_relay_config(config_dict):
@@ -326,7 +329,7 @@ def dhcp_relay_config(config_dict):
             pass
     
     # Reinicializa o serviço
-    os.system("service odhcpd restart")
+     os.system("/etc/init.d/odhcpd restart") 
         
         
 
