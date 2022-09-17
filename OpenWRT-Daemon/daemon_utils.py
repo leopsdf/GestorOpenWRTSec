@@ -1,5 +1,7 @@
 import os
 import sqlite3
+import pathlib
+import json
 
 FIREWALL_FILE = "/etc/config/firewall"
 #FIREWALL_FILE = "./firewall"
@@ -329,41 +331,96 @@ def dhcp_relay_config(config_dict):
     
     # Reinicializa o serviço
     os.system("/etc/init.d/odhcpd restart")
-        
-        
+
+
+# Função que cria o script a ser executado pela crontab  
+def cron_create(rule):
+    
+    # Pega a assinatura da regra recebida
+    rule_hash = rule["rule_hash"]
+    # Pega o campo schedule da regra
+    rule_schedule = rule["schedule"]
+    # Cria dicionário com todos os campos necessários
+    cron_dict = {"dayofweek":rule_schedule["dayofweek"],
+                 "month":rule_schedule["month"],
+                 "dayofmonth":rule_schedule["dayofmonth"],
+                 "hour":rule_schedule["hour"],
+                 "minute":rule_schedule["minute"]}
+    
+    
+    # Pega o caminho do sistema de arquivos onde o script temporário será criado
+    pwd_path = pathlib.Path.cwd()
+    
+    # Cria o corpo a ser executado para reenviar a requisição para /config, remover o registro do arquivo crontab e remover o script
+    structure = """
+    requested = requests.post("http://{}:{}/config".format(daemon_config["address"],daemon_config["port"]), json=rule)
+    os.system("sed -e '/{}/,+1d' -i /etc/crontabs/root".format(rule["rule_hash"]))
+    os.system("rm {}/{}.py".format(pwd_path,rule["rule_hash"]))
+    """
+    
+    # Pega as informações necessárias para o script e transforma em JSON
+    daemon_config = startup_process()
+    config_json = json.dumps(daemon_config)
+    
+    # Adiciona o campo para identificar que está enviando pela cron
+    rule["cron"] = "yes"
+    
+    rule_json = json.dumps(rule)
+    
+    # Cria o script a ser executado
+    os.system("echo 'import os\nimport requests\nimport daemon_utils\n\n\nrule = {}\npwd_path = {}\ndaemon_config = {}\n\n\nif __name__ == \"{}\":\n' > ./{}.py".format(rule_json,str('"'+str(pwd_path)+'"'),config_json,str("__main__"),rule_hash))
+    os.system("echo '{}' >> ./{}.py".format(structure, rule_hash))
+    
+
+    
+    # Popula a crontab com o arquivo a ser executado
+    os.system("echo '#{}' >> /etc/crontabs/root".format(rule_hash))
+    os.system("echo '{} {} {} {} {} python3 {}/{}.py' >> /etc/crontabs/root".format(cron_dict["dayofweek"],
+                                                                                   cron_dict["month"],
+                                                                                   cron_dict["dayofmonth"],
+                                                                                   cron_dict["hour"],
+                                                                                   cron_dict["minute"],
+                                                                                   pwd_path,
+                                                                                   rule_hash))
+
+
+    
 
 if __name__ == "__main__":
-    payload = {
-                "name":"Reject LAN to WAN for custom IP",
-                "src":"lan",
-                "dest":"wan",
-                "proto":"icmp",
-                "target":"REJECT"
-            }
+    # payload = {
+    #             "name":"Reject LAN to WAN for custom IP",
+    #             "src":"lan",
+    #             "dest":"wan",
+    #             "proto":"icmp",
+    #             "target":"REJECT"
+    #         }
     
-    rule = {
-        "action":"delete",
-        "type":"fw",
-        "fields":payload,
-        "port":65004,
-        "targets":"192.168.0.1",
-        "schedule":{
-            "minute":1,                 
-            "enable": 1,
-            "dayofmonth": 10,
-            "month": 11,
-            "dayofweek": 12,
-            "hour":10
-        },
-        "rule_hash":"abcdfefgh12353"
-    }
+    # rule = {
+    #     "action":"delete",
+    #     "type":"fw",
+    #     "fields":payload,
+    #     "port":65004,
+    #     "targets":"192.168.0.1",
+    #     "schedule":{
+    #         "minute":1,                 
+    #         "enable": 1,
+    #         "dayofmonth": 10,
+    #         "month": 11,
+    #         "dayofweek": 12,
+    #         "hour":10
+    #     },
+    #     "rule_hash":"abcdfefgh12353"
+    # }
     
-    if rule["action"] == "apply":
-        # Cria query para inserçãõ no DB
-        result = create_query_config(rule)
-        if rule["type"] == "fw":
-            apply_firewall_config(rule["fields"],rule["rule_hash"])
-        apply(result)
-    elif rule["action"] == "delete":
-        delete_config(rule["rule_hash"],rule["type"])
+    # if rule["action"] == "apply":
+    #     # Cria query para inserçãõ no DB
+    #     result = create_query_config(rule)
+    #     if rule["type"] == "fw":
+    #         apply_firewall_config(rule["fields"],rule["rule_hash"])
+    #     apply(result)
+    # elif rule["action"] == "delete":
+    #     delete_config(rule["rule_hash"],rule["type"])
+    
+    rule = {'action': 'apply', 'type': 'fw', 'fields': {'name': 'Reject LAN to WAN for custom IP', 'src': 'lan', 'dest': 'wan', 'proto': 'icmp', 'target': 'REJECT', 'src_port': 5000, 'src_ip': '192.168.0.5'}, 'port': 50000, 'schedule': {'hour': 10, 'minute': 1, 'enable': 1, 'dayofmonth': 10, 'month': 11, 'dayofweek': 12}, 'targets': '127.0.0.1', 'rule_hash': '5bc154286a6275bb2c3562cb40714cd8', 'token': '97ea8fd3bf30f000a9faf79032d355f3'}
+    cron_create(rule)
     

@@ -230,7 +230,8 @@ def hash_rule(rule_dict):
     # Loop de criação da string associada ao campo schedule
     schedule_string = ""
     for schedule in ordered_schedules.keys():
-        schedule_string += schedule+str(ordered_schedules[schedule])
+        if schedule != "hour":
+            schedule_string += schedule+str(ordered_schedules[schedule])
         
     # Criação da string final associada a regra        
     final_string = action_string+type_string+field_string+target_string+schedule_string

@@ -19,9 +19,59 @@ def openwrt_recv_config():
     
     # Verifica se o token de autenticação é válido
     if rule["token"] == startup_config["token"]:
-    
+        
+        # Verifica se a regra vai ser agendada
+        if rule["schedule"]["hour"] != "25":
+            if "cron" not in rule.keys():
+                daemon_utils.cron_create(rule)
+            else:
+                # Aplica a configuração recebida
+                if rule["action"] == "apply":
+            
+                    # Cria query para inserçãõ no DB
+                    query = daemon_utils.create_query_config(rule)
+            
+                    if rule["type"] == "fw":
+                        # Aplica configa para firewall
+                        daemon_utils.apply_firewall_config(rule["fields"],rule["rule_hash"])
+                
+                    elif rule["type"] == "dhcp":
+                        # Aplica a configuração para DHCP
+                        daemon_utils.dhcp_config(rule)
+            
+                    elif rule["type"] == "dhcp_static":
+                        pass
+            
+                    elif rule["type"] == "dhcp_relay":
+                        # Aplica a configuração de dhcp_relay
+                        daemon_utils.dhcp_relay_config(rule)
+            
+                    elif rule["type"] == "ipv4":
+                        # Aplica configuração de ipv4
+                        daemon_utils.ipv4_config(rule)
+            
+                    elif rule["type"] == "RIP":
+                        # Aplica a configuração de RIP
+                        daemon_utils.RIP_config(rule)
+            
+                    elif rule["type"] == "QoS":
+                        # Aplica configurações de QoS
+                        daemon_utils.qos_config(rule)
+            
+                    elif rule["type"] == "DNS":
+                        # Aplica a configuração do DNS
+                        daemon_utils.dns_config(rule)
+                
+                    # Aplica a query de inserção no banco de dados
+                    daemon_utils.apply(query)
+        
+                # Remove a configuração recebida
+                elif rule["action"] == "delete":
+                    daemon_utils.delete_config(rule["rule_hash"],rule["type"],rule)
+                
+        
         # Aplica a configuração recebida
-        if rule["action"] == "apply":
+        elif rule["action"] == "apply":
             
             # Cria query para inserçãõ no DB
             query = daemon_utils.create_query_config(rule)
