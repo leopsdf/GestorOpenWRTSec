@@ -225,7 +225,7 @@ def process_recv_hosts(received_dict):
         
         # Loop para criação de queries para remover hosts de um grupo, colocando eles no Default
         for host in received_dict["targets"]:
-            query_update_hosts = "update openwrt set logical_group = \"{}\" where address = \"{}\";".format("Default",host)
+            query_update_hosts = "update openwrt set group_name = \"{}\" where address = \"{}\";".format("Default",host)
             queries.append(query_update_hosts)
             
         # Atualiza o registro de todas as regras associadas para group_name Default
@@ -236,9 +236,8 @@ def process_recv_hosts(received_dict):
         for host in hosts:
         
             for config in possible_configs:
-                cursor.execute("update \"{}\" set group_name = \"{}\" where openwrt_ipv4 = \"{}\";".format(config,
-                                                                           "Default",
-                                                                           host))
+                cursor.execute("update \"{}\" set logical_group = \"{}\" where openwrt_ipv4 = \"{}\";".format(config,"Default",host))
+                
         conn.commit()
         conn.close()
         

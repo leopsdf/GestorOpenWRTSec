@@ -63,9 +63,9 @@ def create_config_parameters_db():
     
 def create_controller_db():
     conn = sqlite3.connect("./controller.db")
-    cursor = conn.cursor()
+    cursor = conn.cursor()         
     # Cria tabela que vai armazenar a configuração da northboundAPI
-    cursor.execute("create table northboundAPI (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, port INTEGER, address TEXT, token);")
+    cursor.execute("create table northboundAPI (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, port INTEGER, address TEXT, token TEXT);")
     # Cria tabela que vai armazenar a configuração da southboundPAI
     cursor.execute("create table southboundAPI (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, port INTEGER, address TEXT);")
     # Cria tabela que vai armazenar a configuração do socket da southboundAPI
@@ -74,8 +74,9 @@ def create_controller_db():
     cursor.execute("create table db (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, port INTEGER, address TEXT);")
     
     # Insere os valores padrões em cada uma das configurações
-    cursor.execute("insert into northboundAPI (port,address) values (\"{}\",\"{}\")".format(8080,
-                                                                                            "127.0.0.1"))
+    cursor.execute("insert into northboundAPI (port,address,token) values (\"{}\",\"{}\",\"{}\")".format(8080,
+                                                                                            "127.0.0.1",
+                                                                                            "0"))
     cursor.execute("insert into southboundAPI (port,address) values (\"{}\",\"{}\")".format(8081,
                                                                                             "127.0.0.1"))
     cursor.execute("insert into southbound_socket (port,address) values (\"{}\",\"{}\")".format(65002,

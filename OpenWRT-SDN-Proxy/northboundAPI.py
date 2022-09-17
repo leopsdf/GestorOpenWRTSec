@@ -4,6 +4,8 @@ import socket
 import json
 import re
 import configparser
+from datetime import datetime
+import os
 
 ############################### FLASK API - PATHs ##########################################
         
@@ -22,20 +24,20 @@ known_host_group_relation = {}
 
 
 # API path to generate the JWT Token based on th0e passed data
-@app.route("/admin/token", methods=['POST'])
-def jwt_token():
+# @app.route("/admin/token", methods=['POST'])
+# def jwt_token():
     
-    post_data = request.get_json(force=True)
+#     post_data = request.get_json(force=True)
     
-    # TODO - Algum procedimento para validação do ADMIN
+#     # TODO - Algum procedimento para validação do ADMIN
     
-    # Reads the private key file for JWT token creation
-    priv_key = northutils.get_key("./keys/northbound.key")
-    jwt_token = jwt.encode(post_data, priv_key, algorithm="RS256")
+#     # Reads the private key file for JWT token creation
+#     priv_key = northutils.get_key("./keys/northbound.key")
+#     jwt_token = jwt.encode(post_data, priv_key, algorithm="RS256")
     
-    jwt_token_json = jsonify({"JWT":jwt_token})
+#     jwt_token_json = jsonify({"JWT":jwt_token})
     
-    return jwt_token_json
+#     return jwt_token_json
 
 ######################### APIs de listagem de host por parâmetros#############################
 
@@ -606,15 +608,23 @@ def group():
     # Pega o conteúdo enviado pelo POST
     post_data = request.get_json(force=True)
     
+    #Gerar o timestamp da requisição em epochmilis
+    timestamp = int((datetime.utcnow() - datetime(1970, 1, 1)).total_seconds() * 1000)
+    post_data["timestamp"] = timestamp
+    
     # Reads the public key file for JWT decoding
-    pub_key = northutils.get_key("./keys/northbound.key.pub")
+    #pub_key = northutils.get_key("./keys/northbound.key.pub")
+    
+    # Carrega o token de autenticação cadastrado no banco de dados
+    northbound_config = northutils.startup_north()
+    token = northbound_config["token"]
     
     # Attempts JWT decoding
-    jwt_token = post_data["JWT"]
-    jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
+    # jwt_token = post_data["JWT"]
+    # jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
     
-    # Se não deu nenhum erro na decodificação    
-    if jwt_decoded[0]:
+    # Verifica se o token da requisiçãõ está correto
+    if post_data["token"] == token:
     
         sent_config = northutils.Config(post_data)
 
@@ -646,7 +656,7 @@ def group():
             return jsonify({"ERROR":"Invalid fields or parameters sent."})
     
     else:
-        response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
+        response_dict = {"ERROR":"Invalid token"}
         return jsonify(response_dict)
     
 # API para criação de novos grupos
@@ -655,15 +665,24 @@ def host():
     # Pega o conteúdo enviado pelo POST
     post_data = request.get_json(force=True)
     
-    # Reads the public key file for JWT decoding
-    pub_key = northutils.get_key("./keys/northbound.key.pub")
+    #Gerar o timestamp da requisição em epochmilis
+    timestamp = int((datetime.utcnow() - datetime(1970, 1, 1)).total_seconds() * 1000)
+    post_data["timestamp"] = timestamp
     
-    # Attempts JWT decoding
-    jwt_token = post_data["JWT"]
-    jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
+    # # Reads the public key file for JWT decoding
+    # pub_key = northutils.get_key("./keys/northbound.key.pub")
     
-    # Se não deu nenhum erro na decodificação    
-    if jwt_decoded[0]:
+    # # Attempts JWT decoding
+    # jwt_token = post_data["JWT"]
+    # jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
+    
+    
+    # Carrega o token de autenticação cadastrado no banco de dados
+    northbound_config = northutils.startup_north()
+    token = northbound_config["token"]
+    
+    # Verifica se o token da requisiçãõ está correto
+    if post_data["token"] == token:
     
         sent_config = northutils.Config(post_data)
 
@@ -700,7 +719,7 @@ def host():
                             "INFO":"Check if all the required parameters were sent. Observe if the targets and the groups exist in the database."})
     
     else:
-        response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
+        response_dict = {"ERROR":"Invalid token"}
         return jsonify(response_dict)
         
 
@@ -711,15 +730,23 @@ def config():
     # Pega o conteúdo enviado pelo POST
     post_data = request.get_json(force=True)
     
+    #Gerar o timestamp da requisição em epochmilis
+    timestamp = int((datetime.utcnow() - datetime(1970, 1, 1)).total_seconds() * 1000)
+    post_data["timestamp"] = timestamp
+    
     # Reads the public key file for JWT decoding
-    pub_key = northutils.get_key("./keys/northbound.key.pub")
+    #pub_key = northutils.get_key("./keys/northbound.key.pub")
     
     # Attempts JWT decoding
-    jwt_token = post_data["JWT"]
-    jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
+    # jwt_token = post_data["JWT"]
+    # jwt_decoded = northutils.attempt_jwt_decode(jwt_token, pub_key)
 
-    # Se não deu nenhum erro na decodificação    
-    if jwt_decoded[0]:
+    # Carrega o token de autenticação cadastrado no banco de dados
+    northbound_config = northutils.startup_north()
+    token = northbound_config["token"]
+    
+    # Verifica se o token da requisiçãõ está correto
+    if post_data["token"] == token:
         
         # Cria o objeto para configuração
         sent_config = northutils.Config(post_data)
@@ -764,7 +791,7 @@ def config():
                     # Verifica se a ação é delete para não dar problemas com assinaturas
                     if post_data["action"] == "delete":
                         rule_dict = {"action":"apply",
-                                    "JWT":post_data["JWT"],
+                                    "token":post_data["token"],
                                     "who":post_data["who"],
                                     "timestamp":post_data["timestamp"],
                                     "type":post_data["type"],
@@ -775,7 +802,7 @@ def config():
                         
                     else:
                         rule_dict = {"action":post_data["action"],
-                                    "JWT":post_data["JWT"],
+                                    "token":post_data["token"],
                                     "who":post_data["who"],
                                     "timestamp":post_data["timestamp"],
                                     "type":post_data["type"],
@@ -846,7 +873,7 @@ def config():
             return jsonify({"ERROR":"{}".format(check_config[1])})
         
     else:
-        response_dict = {"ERROR":"JWT - "+jwt_decoded[1]}
+        response_dict = {"ERROR":"Invalid token"}
         return jsonify(response_dict)
 
 # Função principal da API northbound
@@ -865,6 +892,14 @@ def northbound_main(north_config):
     for hashe in configured_hash_array:
         hash_name = hashe[0]
         hash_array.append(hash_name)
+        
+    # Verifica a existência do token de autenticação em uma primeira inicialização
+    if north_config["token"] == "0":
+        # Cria um token de autenticação
+        token = northutils.create()
+        # Insere o token no banco de dados da NorthboundAPI
+        northutils.update_token(token)
+        os.system("echo '{}' > ./token".format(token))
     
     # Flask webApp configuration - running on SSL
     #app.run(debug=True,host="0.0.0.0",port=8080, ssl_context=('./keys/northbound.crt','./keys/northbound.key'))

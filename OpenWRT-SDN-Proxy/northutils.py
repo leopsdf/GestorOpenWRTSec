@@ -9,6 +9,8 @@ import pickle
 import time
 from flask import jsonify
 import db_daemon
+import random
+import string
 
 ########################### Utility functions used on the API paths ##############################
 
@@ -23,6 +25,32 @@ def get_key(file_name):
         
     return key
 
+# Cria o token utilizado na autenticação
+def create():
+    # Cria um array de letras pseudo-aleatórias
+    random_letters = random.choices(string.ascii_lowercase, k=150)
+    
+    token_string = ""
+    # Constroi a string random com os caracteres gerados
+    for letter in random_letters:
+        token_string += letter
+    
+    # token final em formato md5
+    token = hashlib.md5(token_string.encode('utf-8')).hexdigest()
+    
+    return token
+
+def update_token(token):
+    
+    # Pega a porta do dispositivo gerenciado
+    conn = sqlite3.connect("database/controller.db")
+    cursor = conn.cursor()
+    # Atualiza o registro do host
+    cursor.execute("update northboundAPI set token = \"{}\" where id = 1;".format(token))
+    
+    conn.commit()
+    conn.close()
+
 # Coleta as informações de inicialização da northboundAPI
 def startup_north():
     
@@ -35,7 +63,8 @@ def startup_north():
     
     # Dicionários das configs
     startup_config = {"port":int(result[0][1]),
-                      "address":result[0][2]}
+                      "address":result[0][2],
+                      "token":result[0][3]}
     
     conn.close()
     
@@ -282,7 +311,7 @@ class Config():
     # Função feita para checar se os parâmetros enviados são válidos
     def check_parameters_rule(self, known_parameters):
         # Lista com todos os parâmetros para qualquer tipo de regra
-        rule_parameters = ["action","JWT","who","timestamp","type","fields","targets","schedule"]
+        rule_parameters = ["action","token","who","timestamp","type","fields","targets","schedule"]
         # Inicializa o contador de parâmetros
         parameter_counter = 0
         # Loop que verifica se os campos enviados são estão dentro dos válidos
@@ -351,7 +380,7 @@ class Config():
     
     # Método utilizado para checar a validez de uma criação de grupo lógico
     def check_group(self, known_groups):
-        group_parameters = ["action","JWT","who","timestamp","group_name"]
+        group_parameters = ["action","token","who","timestamp","group_name"]
         
         # Inicializa o contador de parâmetros
         parameter_counter = 0
@@ -379,7 +408,7 @@ class Config():
         
     # Método utilizado para checar a existência de um host e do grupo lógico
     def check_host(self, known_hosts, known_groups, known_host_group_relation):
-        host_parameters = ["action","JWT","who","timestamp","group_name","targets"]
+        host_parameters = ["action","token","who","timestamp","group_name","targets"]
         
         # Inicializa o contador de parâmetros
         parameter_counter = 0
