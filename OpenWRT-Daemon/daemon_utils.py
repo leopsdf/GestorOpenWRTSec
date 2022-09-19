@@ -259,9 +259,10 @@ def qos_config(config_dict):
     # Coloca o identificados da configuração no arquivo
     os.system("echo '\n#{}' >> {}".format(config_dict["rule_hash"],"/etc/config/qos"))
     # Coloca o cabeçalho da regra
-    os.system("echo '{}+{}' >> {}".format(qos_config["header"], config_dict["fields"]["interface"], "/etc/config/qos"))
+    os.system("echo '{} {}' >> {}".format(qos_config["header"], config_dict["fields"]["interface"], "/etc/config/qos"))
     
     configs = config_dict["fields"].keys()
+    print(configs)
     
     # Loop para inserção dos parâmetros da regras a partir do que foi enviado
     for config in configs:
