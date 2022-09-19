@@ -268,7 +268,7 @@ def qos_config(config_dict):
     for config in configs:
         try:
             # Insere as configurações no arquivo do firewall
-            os.system("echo '{}\t{}' >> {}".format(qos_config[config],config_dict[config],"/etc/config/qos"))
+            os.system("echo '{}\t{}' >> {}".format(qos_config[config],config_dict["fields"][config],"/etc/config/qos"))
 
         except KeyError:
             pass
