@@ -22,6 +22,8 @@ def openwrt_recv_config():
         
         # Verifica se a regra vai ser agendada
         if rule["schedule"]["hour"] != 25:
+            print("entrou aqui")
+            print(type(rule["schedule"]["hour"]))
             if "cron" not in rule.keys():
                 daemon_utils.cron_create(rule)
             else:
