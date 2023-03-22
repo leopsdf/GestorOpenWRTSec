@@ -1,1 +1,6 @@
-# TCC-OpenWRT-SDN
+# OpenWRT-SDN-like-controller
+
+Given the advances in network technologies such as the Software Defined Networks (SDN) approach, it is noted the possibility of employing the network programmability co-
+ming from this paradigm in different entities that can compose a business or residential network. This work consists in the presentation and implementation of an architecture for managing access point devices running the OpenWRT operating system from a centralizing entity that allows actions such as listing devices, rules and logical groups, creating logical groups, segmenting managed devices into logical groups, and creating and removing sup- ported configurations. 
+
+With this objective, the functionalities of the entities that integrate this architecture and allow the management of a network’s access points (OpenWRT-SDN-Controller and OpenWRT-Daemon) will be thoroughly described. After the implementation of the proposed architecture, tests were performed to prove the described functionalities and to demonstrate the functioning of the entities in a network simulated in the GNS3 software. It is expected that this work can serve as an implementation base for a more robust Open-WRT device management solution.
